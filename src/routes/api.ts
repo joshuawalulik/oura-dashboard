@@ -50,7 +50,18 @@ async function cachedCollection<T>(
     const hit = await env.OURA_KV.get(cacheKey);
     if (hit) return JSON.parse(hit) as T[];
   }
+  const fetchStart = Date.now();
   const filtered = filter(await fetchOuraCollection(env, endpoint, start, end));
+  // Cache misses are the only upstream calls — logging them makes the cache
+  // hit rate and Oura latency visible in Workers Logs. Counts/timings only.
+  console.log(
+    JSON.stringify({
+      event: "oura_fetch",
+      endpoint,
+      ms: Date.now() - fetchStart,
+      documents: filtered.length,
+    })
+  );
   await env.OURA_KV.put(cacheKey, JSON.stringify(filtered), {
     expirationTtl: CACHE_TTL_SECONDS,
   });
@@ -106,11 +117,13 @@ apiRoutes.get("/dashboard", async (c) => {
   const isOwner = c.get("isOwner");
   const bypass = wantsRefresh(c.req.query("refresh"), isOwner);
 
+  const version = (c.env.GIT_SHA ?? "dev").slice(0, 7);
   const notConnected = async () =>
     c.json({
       connected: false,
       viewer_is_owner: isOwner,
       last_sync: await c.env.OURA_KV.get(LAST_SYNC_KV_KEY),
+      version,
     });
 
   if ((await c.env.OURA_KV.get(TOKENS_KV_KEY)) === null) {
@@ -124,6 +137,7 @@ apiRoutes.get("/dashboard", async (c) => {
       connected: true,
       viewer_is_owner: isOwner,
       last_sync: lastSync,
+      version,
       summary: latest ?? { date: null },
       history: { days, data: history },
     });

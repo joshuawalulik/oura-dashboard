@@ -13,6 +13,38 @@ import type { Env, AppVariables } from "./types";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
+// Structured request logs for Workers Logs. Metadata only — never emails,
+// tokens, query strings (OAuth codes/state live there), or health data.
+app.use("*", async (c, next) => {
+  const start = Date.now();
+  try {
+    await next();
+  } finally {
+    console.log(
+      JSON.stringify({
+        event: "request",
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+        status: c.res?.status ?? 500,
+        ms: Date.now() - start,
+        viewer: c.get("email") ? (c.get("isOwner") ? "owner" : "partner") : "unauthenticated",
+      })
+    );
+  }
+});
+
+// Last-resort handler: log the failure shape, return an opaque 500.
+app.onError((err, c) => {
+  console.error(
+    JSON.stringify({
+      event: "unhandled_error",
+      path: new URL(c.req.url).pathname,
+      message: err instanceof Error ? err.message : String(err),
+    })
+  );
+  return c.json({ error: "internal_error" }, 500);
+});
+
 // Security headers (spec §11) on every response.
 app.use("*", async (c, next) => {
   await next();
@@ -63,11 +95,39 @@ app.route("/api", apiRoutes);
 // Everything else is the static dashboard, served through the Worker so the
 // two middlewares above apply (run_worker_first = true in wrangler.toml).
 app.all("*", async (c) => {
-  const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
+  const pathname = new URL(c.req.url).pathname;
+  const isHtml = !/\.[a-z0-9]+$/i.test(pathname) || pathname.endsWith(".html");
+
+  // HTML must always be fetched fresh (no conditional 304s), because we
+  // rewrite it per build below; a stale cached page would keep pointing at
+  // stale ?v= asset URLs.
+  let request = c.req.raw;
+  if (isHtml) {
+    request = new Request(c.req.raw);
+    request.headers.delete("If-None-Match");
+    request.headers.delete("If-Modified-Since");
+  }
+  const assetResponse = await c.env.ASSETS.fetch(request);
+
+  // Cache-bust JS/CSS per deploy: stamp asset URLs in HTML with the build
+  // SHA. The hour-long asset cache below then can never serve a stale build
+  // — a new deploy means new URLs.
+  if (isHtml && assetResponse.ok) {
+    const build = (c.env.GIT_SHA ?? "dev").slice(0, 7);
+    const html = (await assetResponse.text()).replace(
+      /(href|src)="(\/[^"]+\.(?:js|css))"/g,
+      `$1="$2?v=${build}"`
+    );
+    const headers = new Headers(assetResponse.headers);
+    headers.delete("Content-Length");
+    headers.delete("ETag");
+    headers.delete("Last-Modified");
+    headers.set("Cache-Control", "no-store");
+    return new Response(html, { status: assetResponse.status, headers });
+  }
+
   const response = new Response(assetResponse.body, assetResponse);
-  // JS/CSS can be cached briefly; HTML stays revalidated so UI changes land
-  // immediately. (Asset filenames aren't content-hashed, hence the short TTL.)
-  if (/\.(js|css)$/.test(new URL(c.req.url).pathname)) {
+  if (/\.(js|css)$/.test(pathname)) {
     response.headers.set("Cache-Control", "public, max-age=3600");
   }
   return response;

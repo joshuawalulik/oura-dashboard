@@ -11,6 +11,8 @@ export interface Env {
   OWNER_EMAIL: string;
   /** DEV ONLY — "1" skips Access JWT validation under `wrangler dev`. */
   ACCESS_DEV_BYPASS?: string;
+  /** Git commit SHA injected by CI (`--var GIT_SHA:...`); absent in dev. */
+  GIT_SHA?: string;
 }
 
 /** Variables attached to the Hono context by the Access middleware. */

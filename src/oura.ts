@@ -70,16 +70,23 @@ export async function getAccessToken(
 
   if (res.status === 401) {
     // Refresh token revoked — drop the record so the UI shows "not connected".
+    console.warn(JSON.stringify({ event: "oura_token_refresh", outcome: "revoked" }));
     await env.OURA_KV.delete(TOKENS_KV_KEY);
     throw new NotConnectedError();
   }
-  if (!res.ok) throw new Error(`Oura token refresh failed (${res.status})`);
+  if (!res.ok) {
+    console.error(
+      JSON.stringify({ event: "oura_token_refresh", outcome: "error", status: res.status })
+    );
+    throw new Error(`Oura token refresh failed (${res.status})`);
+  }
 
   const updated = tokensFromResponse(
     (await res.json()) as TokenResponse,
     tokens.refresh_token
   );
   await env.OURA_KV.put(TOKENS_KV_KEY, JSON.stringify(updated));
+  console.log(JSON.stringify({ event: "oura_token_refresh", outcome: "ok" }));
   return updated.access_token;
 }
 
