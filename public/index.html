@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0e1a">
   <title>Josh's Oura</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
@@ -61,8 +62,13 @@
           <button type="button" data-days="30">30 days</button>
         </div>
       </div>
-      <div class="chart-box"><canvas id="scores-chart" height="220"></canvas></div>
-      <div class="chart-box"><canvas id="sleep-chart" height="180"></canvas></div>
+      <div class="chart-box">
+        <div class="chart-canvas chart-canvas--scores"><canvas id="scores-chart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <h3>Time asleep (hours)</h3>
+        <div class="chart-canvas chart-canvas--sleep"><canvas id="sleep-chart"></canvas></div>
+      </div>
     </section>
   </main>
 

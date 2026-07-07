@@ -1,37 +1,64 @@
-/* Josh's Oura — mobile-first, dark-mode friendly */
+/* Josh's Oura — dark glass theme (Oura-app inspired, dark-committed) */
 :root {
-  color-scheme: light dark;
-  --bg: #f6f5f3;
-  --card-bg: #ffffff;
-  --text: #1c1c1e;
-  --text-muted: #6e6e73;
-  --border: rgba(0, 0, 0, 0.08);
-  --good: #4cc38a;
-  --fair: #f0b429;
-  --low: #e5484d;
-  --accent: #5b8def;
-  --track: rgba(127, 127, 127, 0.18);
-}
+  color-scheme: dark;
+  --bg: #0a0e1a;
+  --text: #eef1f8;
+  --text-muted: rgba(226, 233, 250, 0.6);
+  --text-faint: rgba(226, 233, 250, 0.38);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101014;
-    --card-bg: #1b1b21;
-    --text: #f2f2f4;
-    --text-muted: #9b9ba3;
-    --border: rgba(255, 255, 255, 0.08);
-  }
+  /* Glass surfaces */
+  --glass: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-highlight: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 8px 32px rgba(2, 6, 18, 0.45);
+
+  /* Status colors (score rings): good / fair / pay-attention */
+  --good: #34d399;
+  --fair: #fbbf24;
+  --low: #f87171;
+
+  /* Chart series — validated for CVD + contrast on the dark surface */
+  --chart-readiness: #0d9488;
+  --chart-sleep: #6366f1;
+  --chart-activity: #d97706;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+
+  --accent: #818cf8;
+  --track: rgba(255, 255, 255, 0.1);
 }
 
 * { box-sizing: border-box; }
 
+html { background: var(--bg); }
+
 body {
   margin: 0 auto;
-  padding: 1rem 1rem 3rem;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem 3rem;
   max-width: 42rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
+  min-height: 100dvh;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(50rem 34rem at 85% -10%, rgba(99, 102, 241, 0.22), transparent 60%),
+    radial-gradient(44rem 30rem at -15% 20%, rgba(13, 148, 136, 0.18), transparent 60%),
+    radial-gradient(40rem 40rem at 60% 115%, rgba(147, 51, 234, 0.14), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Frosted glass card recipe */
+.card,
+.stat,
+.chart-box,
+.notice,
+.toggle {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
 }
 
 .site-header {
@@ -40,34 +67,41 @@ body {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin: 0.5rem 0 1.25rem;
 }
 
-.site-header h1 { font-size: 1.4rem; margin: 0; }
+.site-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
 
-.last-sync { margin: 0; font-size: 0.75rem; color: var(--text-muted); }
+.last-sync { margin: 0; font-size: 0.75rem; color: var(--text-faint); }
 
 .today-date {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.9rem;
   font-size: 0.9rem;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
 .notice {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   margin-bottom: 1.5rem;
   text-align: center;
 }
 
+.notice p { margin: 0 0 0.5rem; color: var(--text-muted); }
+
 .button {
   display: inline-block;
-  margin-top: 0.5rem;
-  padding: 0.6rem 1.4rem;
+  margin-top: 0.75rem;
+  padding: 0.65rem 1.6rem;
   border-radius: 999px;
-  background: var(--accent);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.85), rgba(99, 102, 241, 0.65));
+  border: 1px solid rgba(165, 180, 252, 0.45);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   color: #fff;
   text-decoration: none;
   font-weight: 600;
@@ -76,101 +110,131 @@ body {
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
+  gap: 0.8rem;
 }
 
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 0.9rem 0.5rem 1rem;
+  padding: 1rem 0.5rem 1.1rem;
   text-align: center;
+  transition: transform 0.2s ease;
 }
 
 .card h2 {
-  margin: 0 0 0.6rem;
-  font-size: 0.8rem;
+  margin: 0 0 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
   color: var(--text-muted);
 }
 
 .ring-wrap { display: flex; justify-content: center; min-height: 84px; }
 
 .ring-score {
-  font-size: 1.6rem;
+  font-size: 1.65rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
+
+/* Soft neon glow on the score arc */
+.ring-arc { filter: drop-shadow(0 0 6px currentColor); opacity: 0.95; }
 
 .ring-empty {
   align-self: center;
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-size: 0.8rem;
 }
 
 .stats {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
 }
 
 .stat {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 0.9rem 1.2rem;
+  padding: 1rem 1.3rem;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
 
-.stat-label { color: var(--text-muted); font-size: 0.85rem; }
-.stat-value { font-size: 1.3rem; font-weight: 700; }
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
 
-#trends { margin-top: 2rem; }
+.stat-value { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; }
+
+#trends { margin-top: 2.25rem; }
 
 .trends-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
-.trends-header h2 { font-size: 1.1rem; margin: 0; }
+.trends-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
 
 .toggle {
   display: inline-flex;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 2px;
+  padding: 3px;
 }
 
 .toggle button {
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.85rem;
-  padding: 0.35rem 0.9rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  padding: 0.35rem 0.95rem;
   border-radius: 999px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .toggle button.active {
-  background: var(--accent);
-  color: #fff;
+  background: rgba(129, 140, 248, 0.28);
+  border-color: rgba(165, 180, 252, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: var(--text);
   font-weight: 600;
 }
 
 .chart-box {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 0.9rem;
-  margin-bottom: 0.9rem;
+  padding: 1.1rem 1rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+/* Chart.js needs a fixed-height positioned parent when responsive +
+   maintainAspectRatio:false, or it resizes itself in an endless loop. */
+.chart-canvas { position: relative; width: 100%; }
+.chart-canvas--scores { height: 250px; }
+.chart-canvas--sleep { height: 190px; }
+
+@media (max-width: 480px) {
+  .chart-canvas--scores { height: 220px; }
+  .chart-canvas--sleep { height: 170px; }
+}
+
+.chart-box h3 {
+  margin: 0 0 0.75rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
 }
 
 .site-footer { margin-top: 3rem; text-align: center; }
@@ -178,15 +242,20 @@ body {
 .link-button {
   border: 0;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-faint);
   font: inherit;
   font-size: 0.85rem;
   text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
   margin: 0 0.5rem;
 }
 
 .link-button.danger { color: var(--low); }
+
+/* Content pages (privacy/terms) */
+main > p, main > ul { color: var(--text-muted); line-height: 1.6; }
+main a { color: var(--accent); }
 
 /* Loading skeletons */
 .skeleton { position: relative; overflow: hidden; }
@@ -197,7 +266,7 @@ body {
   background: linear-gradient(
     100deg,
     transparent 30%,
-    rgba(127, 127, 127, 0.12) 50%,
+    rgba(255, 255, 255, 0.07) 50%,
     transparent 70%
   );
   animation: shimmer 1.4s infinite;
@@ -209,7 +278,12 @@ body {
 }
 
 @media (max-width: 480px) {
-  .cards { gap: 0.5rem; }
-  .card { padding: 0.7rem 0.3rem 0.8rem; }
+  .cards { gap: 0.55rem; }
+  .card { padding: 0.8rem 0.3rem 0.9rem; border-radius: 20px; }
   .ring-wrap { min-height: 72px; }
+  .site-header h1 { font-size: 1.3rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
 }

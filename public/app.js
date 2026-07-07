@@ -66,7 +66,7 @@
 
     const track = document.createElementNS(svgNS, "circle");
     const arc = document.createElementNS(svgNS, "circle");
-    for (const [circle, stroke] of [[track, cssVar("--track")], [arc, color]]) {
+    for (const [circle, stroke] of [[track, cssVar("--track")], [arc, "currentColor"]]) {
       circle.setAttribute("cx", size / 2);
       circle.setAttribute("cy", size / 2);
       circle.setAttribute("r", radius);
@@ -74,6 +74,9 @@
       circle.setAttribute("stroke", stroke);
       circle.setAttribute("stroke-width", "7");
     }
+    // currentColor + CSS class give the arc its color and soft glow
+    arc.setAttribute("class", "ring-arc");
+    arc.style.color = color;
     arc.setAttribute("stroke-linecap", "round");
     arc.setAttribute("stroke-dasharray", circumference);
     arc.setAttribute("stroke-dashoffset", circumference * (1 - score / 100));
@@ -126,6 +129,7 @@
       tension: 0.35,
       spanGaps: true,
       pointRadius: 2,
+      pointHoverRadius: 5,
       borderWidth: 2,
     };
   }
@@ -133,12 +137,13 @@
   function renderCharts(history) {
     const labels = history.map((r) => formatDateLabel(r.date));
     const muted = cssVar("--text-muted");
-    const grid = cssVar("--track");
+    const grid = cssVar("--chart-grid");
 
     const commonOptions = {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: muted, boxWidth: 12 } } },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { labels: { color: muted, boxWidth: 12, boxHeight: 12 } } },
       scales: {
         x: { ticks: { color: muted, maxTicksLimit: 8 }, grid: { display: false } },
         y: { ticks: { color: muted }, grid: { color: grid } },
@@ -150,9 +155,9 @@
       data: {
         labels,
         datasets: [
-          lineDataset("Readiness", history.map((r) => r.readiness), cssVar("--good")),
-          lineDataset("Sleep", history.map((r) => r.sleep), cssVar("--accent")),
-          lineDataset("Activity", history.map((r) => r.activity), cssVar("--fair")),
+          lineDataset("Readiness", history.map((r) => r.readiness), cssVar("--chart-readiness")),
+          lineDataset("Sleep", history.map((r) => r.sleep), cssVar("--chart-sleep")),
+          lineDataset("Activity", history.map((r) => r.activity), cssVar("--chart-activity")),
         ],
       },
       options: {
@@ -164,23 +169,26 @@
       },
     };
 
+    // Single series: the card's heading names it, so no legend box.
+    const sleepColor = cssVar("--chart-sleep");
+    const sleepDataset = lineDataset(
+      "Time asleep (hours)",
+      history.map((r) =>
+        r.total_sleep_seconds === null
+          ? null
+          : Math.round((r.total_sleep_seconds / 3600) * 10) / 10
+      ),
+      sleepColor
+    );
+    sleepDataset.fill = true;
+    sleepDataset.backgroundColor = "rgba(99, 102, 241, 0.12)";
     const sleepConfig = {
       type: "line",
-      data: {
-        labels,
-        datasets: [
-          lineDataset(
-            "Time asleep (hours)",
-            history.map((r) =>
-              r.total_sleep_seconds === null
-                ? null
-                : Math.round((r.total_sleep_seconds / 3600) * 10) / 10
-            ),
-            cssVar("--accent")
-          ),
-        ],
+      data: { labels, datasets: [sleepDataset] },
+      options: {
+        ...commonOptions,
+        plugins: { legend: { display: false } },
       },
-      options: commonOptions,
     };
 
     for (const [key, canvasId, config] of [
