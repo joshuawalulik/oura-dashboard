@@ -3,11 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "LICENSE"]
+
+# A newer push cancels the previous still-running run for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: Typecheck & test
+  ci:
+    name: Test & deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,36 +22,26 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit --no-fund
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Test
         run: npx vitest run
 
-  deploy:
-    name: Deploy to Cloudflare
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      # Deploy steps run only on pushes to main; tests above gate them.
       - name: Deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Smoke test — site is up and fails closed
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           code=$(curl -s -o /dev/null -w "%{http_code}" https://oura.joshuawalulik.com/)
           echo "GET / -> $code"
           # Unauthenticated requests must be redirected to Access (302) or
-          # rejected by the Worker (403). Anything else fails the deploy job.
+          # rejected by the Worker (403). Anything else fails the run.
           if [ "$code" != "302" ] && [ "$code" != "403" ]; then
             echo "Unexpected status — site may be open or down" >&2
             exit 1

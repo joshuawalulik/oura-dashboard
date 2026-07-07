@@ -179,6 +179,61 @@ describe("owner-only auth routes", () => {
   });
 });
 
+describe("/api/dashboard", () => {
+  it("reports not connected (200) with the viewer flag when Oura is not linked", async () => {
+    const res = await SELF.fetch("https://dashboard.test/api/dashboard", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      connected: false,
+      viewer_is_owner: true,
+      last_sync: null,
+    });
+  });
+
+  it("returns status, summary, and history in one filtered response", async () => {
+    await connectTokens();
+    const today = new Date().toISOString().slice(0, 10);
+    ouraGet("/v2/usercollection/daily_readiness", {
+      data: [{ day: today, score: 91, contributors: { hrv_balance: 80 } }],
+      next_token: null,
+    });
+    ouraGet("/v2/usercollection/daily_sleep", {
+      data: [{ day: today, score: 77 }],
+      next_token: null,
+    });
+    ouraGet("/v2/usercollection/daily_activity", {
+      data: [{ day: today, score: 68, steps: 9999 }],
+      next_token: null,
+    });
+    ouraGet("/v2/usercollection/sleep", {
+      data: [{ day: today, type: "long_sleep", total_sleep_duration: 25200, average_heart_rate: 50 }],
+      next_token: null,
+    });
+
+    const res = await SELF.fetch("https://dashboard.test/api/dashboard?days=30", {
+      headers: { "Cf-Access-Jwt-Assertion": partnerJwt },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      connected: boolean;
+      viewer_is_owner: boolean;
+      summary: Record<string, unknown>;
+      history: { days: number; data: unknown[] };
+    };
+    expect(body.connected).toBe(true);
+    expect(body.viewer_is_owner).toBe(false);
+    expect(body.summary).toMatchObject({ date: today, readiness: 91, sleep: 77, activity: 68 });
+    expect(body.history.days).toBe(30);
+    expect(body.history.data).toHaveLength(30);
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain("steps");
+    expect(raw).not.toContain("heart_rate");
+    expect(raw).not.toContain("contributors");
+  });
+});
+
 describe("/api data routes", () => {
   it("returns 409 not_connected when Oura is not linked", async () => {
     const res = await SELF.fetch("https://dashboard.test/api/summary", {
