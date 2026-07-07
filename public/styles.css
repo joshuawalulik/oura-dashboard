@@ -253,6 +253,14 @@ body {
 
 .link-button.danger { color: var(--low); }
 
+.version {
+  margin: 0.9rem 0 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
 /* Content pages (privacy/terms) */
 main > p, main > ul { color: var(--text-muted); line-height: 1.6; }
 main a { color: var(--accent); }

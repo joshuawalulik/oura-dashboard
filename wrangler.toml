@@ -6,6 +6,10 @@ compatibility_date = "2025-09-01"
 # Security requirement: the only way in is the Access-protected custom domain.
 workers_dev = false
 
+# Persist structured console logs to Workers Logs (dashboard: Workers → Logs).
+[observability]
+enabled = true
+
 # Custom domain on the joshuawalulik.com zone. Deploying creates the DNS
 # record and TLS certificate automatically.
 routes = [

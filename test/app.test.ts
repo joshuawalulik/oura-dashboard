@@ -189,6 +189,7 @@ describe("/api/dashboard", () => {
       connected: false,
       viewer_is_owner: true,
       last_sync: null,
+      version: "dev",
     });
   });
 

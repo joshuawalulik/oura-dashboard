@@ -202,8 +202,11 @@
   }
 
   // iOS Safari: Chart.js shows tooltips on touchstart/touchmove but never
-  // hides them (no touchend handling), so a tapped point's tooltip sticks
-  // around forever. Clear the active elements when the finger lifts.
+  // hides them, so a tapped point's tooltip sticks around forever. Clearing
+  // on touchend alone is not enough: ~300ms after touchend, Safari fires
+  // synthetic mouse events (mousemove at the touch point) that re-activate
+  // the tooltip. preventDefault() on touchend suppresses those synthetic
+  // events, and a delayed second clear catches any that slip through.
   function dismissTooltipOnTouchEnd(canvas) {
     if (canvas.dataset.touchDismiss) return; // attach once per canvas
     canvas.dataset.touchDismiss = "1";
@@ -214,8 +217,13 @@
       chart.tooltip.setActiveElements([], { x: 0, y: 0 });
       chart.update();
     };
-    canvas.addEventListener("touchend", clear);
-    canvas.addEventListener("touchcancel", clear);
+    const onEnd = (event) => {
+      event.preventDefault();
+      clear();
+      setTimeout(clear, 400);
+    };
+    canvas.addEventListener("touchend", onEnd, { passive: false });
+    canvas.addEventListener("touchcancel", onEnd, { passive: false });
   }
 
   function renderHistory(data) {
@@ -273,6 +281,9 @@
     const dash = await fetchJson(`/api/dashboard?${params}`);
 
     state.isOwner = dash.viewer_is_owner;
+    if (dash.version) {
+      $("app-version").textContent = `build ${dash.version}`;
+    }
     if (!dash.connected) {
       showNotConnected(dash.viewer_is_owner);
       return;

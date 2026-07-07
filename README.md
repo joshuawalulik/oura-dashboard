@@ -98,6 +98,19 @@ Every push runs typecheck + tests; merges to `main` deploy via
 unauthenticated requests are turned away** — proving each deploy is up
 *and* fails closed. Superseded runs auto-cancel; docs-only commits skip CI.
 
+## Observability
+
+- **Structured JSON logs** flow to Workers Logs (and stream live via
+  `npx wrangler tail`): every request logs method, path, status, latency,
+  and viewer *role* — never emails, tokens, query strings (OAuth codes live
+  there), or health values
+- **Upstream visibility** — cache misses log each Oura call's latency and
+  document count (making the cache hit rate obvious), and token refreshes
+  log their outcome, so a broken Oura connection is diagnosable at a glance
+- **Uptime probe** — an hourly GitHub Actions run asserts the production
+  site is reachable *and* still failing closed, emailing on failure; the
+  same check gates every deploy
+
 ## Project layout
 
 | Path | Purpose |

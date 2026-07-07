@@ -35,6 +35,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Stamp the deploy with its commit so the footer shows the build.
+          command: deploy --var GIT_SHA:${{ github.sha }}
       - name: Smoke test — site is up and fails closed
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |

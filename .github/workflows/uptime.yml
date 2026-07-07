@@ -1,0 +1,24 @@
+name: Uptime
+
+# Hourly probe: the site must be reachable AND failing closed. GitHub emails
+# the repo owner when a scheduled run fails.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe site
+        run: |
+          code=$(curl -s -o /dev/null -m 20 -w "%{http_code}" https://oura.joshuawalulik.com/)
+          echo "GET / -> $code"
+          # Unauthenticated requests must be redirected to Access (302) or
+          # rejected by the Worker (403). Anything else is an incident:
+          # 5xx/timeout = down; 200 = the front door is OPEN.
+          if [ "$code" != "302" ] && [ "$code" != "403" ]; then
+            echo "Unexpected status $code" >&2
+            exit 1
+          fi
