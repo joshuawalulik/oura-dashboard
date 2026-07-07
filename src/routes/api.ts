@@ -98,6 +98,41 @@ function handleUpstreamError(err: unknown): Response {
   return Response.json({ error: "upstream_error" }, { status: 502 });
 }
 
+// Everything the page needs in one request: status + summary + history.
+// One loadHistory() call serves both summary and charts (4 KV reads total,
+// versus 8 across the separate /summary + /history endpoints).
+apiRoutes.get("/dashboard", async (c) => {
+  const days = c.req.query("days") === "30" ? 30 : 7;
+  const isOwner = c.get("isOwner");
+  const bypass = wantsRefresh(c.req.query("refresh"), isOwner);
+
+  const notConnected = async () =>
+    c.json({
+      connected: false,
+      viewer_is_owner: isOwner,
+      last_sync: await c.env.OURA_KV.get(LAST_SYNC_KV_KEY),
+    });
+
+  if ((await c.env.OURA_KV.get(TOKENS_KV_KEY)) === null) {
+    return notConnected();
+  }
+  try {
+    const history = await loadHistory(c.env, days, bypass);
+    const latest = latestRecord(history);
+    const lastSync = await c.env.OURA_KV.get(LAST_SYNC_KV_KEY);
+    return c.json({
+      connected: true,
+      viewer_is_owner: isOwner,
+      last_sync: lastSync,
+      summary: latest ?? { date: null },
+      history: { days, data: history },
+    });
+  } catch (err) {
+    if (err instanceof NotConnectedError) return notConnected();
+    return handleUpstreamError(err);
+  }
+});
+
 apiRoutes.get("/summary", async (c) => {
   const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
   try {

@@ -16,9 +16,10 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 // Security headers (spec §11) on every response.
 app.use("*", async (c, next) => {
   await next();
+  // Chart.js is self-hosted (public/vendor), so no third-party origins at all.
   c.res.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; " +
+    "default-src 'self'; script-src 'self'; " +
       "style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
       "frame-ancestors 'none'; base-uri 'none'"
   );
@@ -63,7 +64,13 @@ app.route("/api", apiRoutes);
 // two middlewares above apply (run_worker_first = true in wrangler.toml).
 app.all("*", async (c) => {
   const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
-  return new Response(assetResponse.body, assetResponse);
+  const response = new Response(assetResponse.body, assetResponse);
+  // JS/CSS can be cached briefly; HTML stays revalidated so UI changes land
+  // immediately. (Asset filenames aren't content-hashed, hence the short TTL.)
+  if (/\.(js|css)$/.test(new URL(c.req.url).pathname)) {
+    response.headers.set("Cache-Control", "public, max-age=3600");
+  }
+  return response;
 });
 
 export default app;

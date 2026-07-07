@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const state = { days: 7, isOwner: false, charts: {} };
+  const state = { days: 7, isOwner: false, charts: {}, historyCache: {} };
 
   const $ = (id) => document.getElementById(id);
 
@@ -218,12 +218,22 @@
     canvas.addEventListener("touchcancel", clear);
   }
 
+  function renderHistory(data) {
+    $("trends").hidden = false;
+    renderCharts(data);
+  }
+
   async function loadHistory({ refresh = false } = {}) {
+    // Ranges already fetched this visit render instantly from memory.
+    if (!refresh && state.historyCache[state.days]) {
+      renderHistory(state.historyCache[state.days]);
+      return;
+    }
     const params = new URLSearchParams({ days: String(state.days) });
     if (refresh) params.set("refresh", "1");
     const history = await fetchJson(`/api/history?${params}`);
-    $("trends").hidden = false;
-    renderCharts(history.data);
+    state.historyCache[state.days] = history.data;
+    renderHistory(history.data);
   }
 
   /* ---- States & wiring ---- */
@@ -256,26 +266,27 @@
     })}`;
   }
 
+  // One request fetches status + summary + history together.
   async function loadDashboard({ refresh = false } = {}) {
-    const summaryUrl = refresh ? "/api/summary?refresh=1" : "/api/summary";
-    const [summary] = await Promise.all([
-      fetchJson(summaryUrl),
-      loadHistory({ refresh }),
-    ]);
-    renderSummary(summary);
-    renderLastSync(summary.last_sync);
+    const params = new URLSearchParams({ days: String(state.days) });
+    if (refresh) params.set("refresh", "1");
+    const dash = await fetchJson(`/api/dashboard?${params}`);
+
+    state.isOwner = dash.viewer_is_owner;
+    if (!dash.connected) {
+      showNotConnected(dash.viewer_is_owner);
+      return;
+    }
+    if (refresh) state.historyCache = {};
+    $("owner-controls").hidden = !state.isOwner;
+    renderSummary(dash.summary);
+    renderLastSync(dash.last_sync);
+    state.historyCache[dash.history.days] = dash.history.data;
+    renderHistory(dash.history.data);
   }
 
   async function init() {
     try {
-      const status = await fetchJson("/api/status");
-      state.isOwner = status.viewer_is_owner;
-      if (!status.connected) {
-        showNotConnected(status.viewer_is_owner);
-        return;
-      }
-      $("owner-controls").hidden = !state.isOwner;
-      renderLastSync(status.last_sync);
       await loadDashboard();
     } catch (err) {
       if (err.notConnected) {

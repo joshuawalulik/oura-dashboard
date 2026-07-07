@@ -26,8 +26,8 @@ reconnecting.
 | `src/oura.ts` | Oura OAuth token refresh/rotation + paginated data fetching |
 | `src/filter.ts` | Field allowlists — the only path data takes to the browser |
 | `src/routes/auth.ts` | Owner-only `/auth/connect`, `/auth/callback`, `/auth/disconnect` |
-| `src/routes/api.ts` | `/api/summary`, `/api/history?days=7\|30`, `/api/status` (KV-cached, 3h) |
-| `public/` | Static dashboard (vanilla JS + Chart.js from jsDelivr) |
+| `src/routes/api.ts` | `/api/dashboard` (combined), plus `/api/summary`, `/api/history?days=7\|30`, `/api/status` (KV-cached, 3h) |
+| `public/` | Static dashboard (vanilla JS + self-hosted Chart.js) |
 | `test/` | Vitest (`@cloudflare/vitest-pool-workers`) — no live Oura calls |
 
 ## Local development
@@ -157,6 +157,7 @@ Workers Scripts:Edit + Workers KV Storage:Edit) and `CLOUDFLARE_ACCOUNT_ID`.
 - OAuth `state` is random, single-use, and expires after 10 minutes.
 - Refresh-token rotation is persisted; a revoked token degrades cleanly to
   the "not connected" state.
-- Security headers on every response: CSP (`self` + jsDelivr for Chart.js),
-  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `nosniff`.
+- Security headers on every response: CSP locked to `'self'` (Chart.js is
+  self-hosted, so no third-party origins at all), `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `nosniff`.
 - No health data or tokens are ever logged.
