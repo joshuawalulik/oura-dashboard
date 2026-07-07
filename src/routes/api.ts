@@ -1,0 +1,143 @@
+/**
+ * Data API (spec §7): shaped, allowlisted, KV-cached responses.
+ * Raw Oura payloads never reach the browser.
+ */
+import { Hono } from "hono";
+import type { Env, AppVariables } from "../types";
+import { NotConnectedError, TOKENS_KV_KEY, fetchOuraCollection } from "../oura";
+import {
+  filterScoreDocs,
+  filterSleepPeriodDocs,
+  latestRecord,
+  mergeHistory,
+  type DayRecord,
+  type ScoreDoc,
+  type SleepPeriodDoc,
+} from "../filter";
+
+const CACHE_TTL_SECONDS = 3 * 60 * 60;
+const LAST_SYNC_KV_KEY = "last_sync";
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function dateRange(days: number): { start: string; end: string } {
+  const now = new Date();
+  // End one day ahead of UTC-today so time zones ahead of UTC still get
+  // "today" (daily endpoints treat end_date as inclusive; extra day is empty).
+  const end = new Date(now);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  return { start: isoDate(start), end: isoDate(end) };
+}
+
+/**
+ * Returns the filtered documents for one endpoint, from the KV cache when
+ * fresh, otherwise from Oura (storing the *filtered* result, 3h TTL).
+ */
+async function cachedCollection<T>(
+  env: Env,
+  endpoint: string,
+  start: string,
+  end: string,
+  filter: (docs: unknown[]) => T[],
+  bypassCache: boolean
+): Promise<T[]> {
+  const cacheKey = `cache:${endpoint}:${start}:${end}`;
+  if (!bypassCache) {
+    const hit = await env.OURA_KV.get(cacheKey);
+    if (hit) return JSON.parse(hit) as T[];
+  }
+  const filtered = filter(await fetchOuraCollection(env, endpoint, start, end));
+  await env.OURA_KV.put(cacheKey, JSON.stringify(filtered), {
+    expirationTtl: CACHE_TTL_SECONDS,
+  });
+  await env.OURA_KV.put(LAST_SYNC_KV_KEY, new Date().toISOString());
+  return filtered;
+}
+
+async function loadHistory(
+  env: Env,
+  days: number,
+  bypassCache: boolean
+): Promise<DayRecord[]> {
+  const { start, end } = dateRange(days);
+  const [readiness, sleep, activity, sleepPeriods] = await Promise.all([
+    cachedCollection<ScoreDoc>(env, "daily_readiness", start, end, filterScoreDocs, bypassCache),
+    cachedCollection<ScoreDoc>(env, "daily_sleep", start, end, filterScoreDocs, bypassCache),
+    cachedCollection<ScoreDoc>(env, "daily_activity", start, end, filterScoreDocs, bypassCache),
+    cachedCollection<SleepPeriodDoc>(env, "sleep", start, end, filterSleepPeriodDocs, bypassCache),
+  ]);
+  // Trim the lookahead day off the displayed range unless it has data.
+  const merged = mergeHistory(start, end, readiness, sleep, activity, sleepPeriods);
+  const last = merged[merged.length - 1];
+  const hasData =
+    last &&
+    (last.readiness !== null ||
+      last.sleep !== null ||
+      last.activity !== null ||
+      last.total_sleep_seconds !== null);
+  return hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
+}
+
+export const apiRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+
+// `?refresh=1` bypasses the cache — owner only.
+function wantsRefresh(query: string | undefined, isOwner: boolean): boolean {
+  return query === "1" && isOwner;
+}
+
+function handleUpstreamError(err: unknown): Response {
+  if (err instanceof NotConnectedError) {
+    return Response.json({ error: "not_connected" }, { status: 409 });
+  }
+  // No health data or tokens in logs — log the message only.
+  console.error("upstream_error", err instanceof Error ? err.message : "unknown");
+  return Response.json({ error: "upstream_error" }, { status: 502 });
+}
+
+apiRoutes.get("/summary", async (c) => {
+  const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
+  try {
+    const history = await loadHistory(c.env, 7, bypass);
+    const latest = latestRecord(history);
+    const lastSync = await c.env.OURA_KV.get(LAST_SYNC_KV_KEY);
+    if (!latest) {
+      return c.json({ date: null, last_sync: lastSync });
+    }
+    return c.json({
+      date: latest.date,
+      readiness: latest.readiness,
+      sleep: latest.sleep,
+      activity: latest.activity,
+      total_sleep_seconds: latest.total_sleep_seconds,
+      last_sync: lastSync,
+    });
+  } catch (err) {
+    return handleUpstreamError(err);
+  }
+});
+
+apiRoutes.get("/history", async (c) => {
+  const days = c.req.query("days") === "30" ? 30 : 7;
+  const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
+  try {
+    return c.json({ days, data: await loadHistory(c.env, days, bypass) });
+  } catch (err) {
+    return handleUpstreamError(err);
+  }
+});
+
+apiRoutes.get("/status", async (c) => {
+  const [tokens, lastSync] = await Promise.all([
+    c.env.OURA_KV.get(TOKENS_KV_KEY),
+    c.env.OURA_KV.get(LAST_SYNC_KV_KEY),
+  ]);
+  return c.json({
+    connected: tokens !== null,
+    viewer_is_owner: c.get("isOwner"),
+    last_sync: lastSync,
+  });
+});

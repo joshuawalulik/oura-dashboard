@@ -1,0 +1,27 @@
+# Oura Partner Dashboard — Cloudflare Worker config
+name = "oura-partner-dashboard"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Security requirement: the only way in is the Access-protected custom domain.
+workers_dev = false
+
+# Custom domain on the joshuawalulik.com zone. Deploying creates the DNS
+# record and TLS certificate automatically.
+routes = [
+  { pattern = "oura.joshuawalulik.com", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# All requests (including static assets) go through the Worker so the
+# Access JWT is validated and security headers are applied on every response.
+run_worker_first = true
+
+[[kv_namespaces]]
+binding = "OURA_KV"
+id = "fb9c60d3753b4c0caf75f0965aa1b70c"
+
+# Secrets (set via `wrangler secret put <NAME>`, never committed):
+#   OURA_CLIENT_ID, OURA_CLIENT_SECRET, CF_ACCESS_AUD, CF_ACCESS_TEAM_DOMAIN, OWNER_EMAIL

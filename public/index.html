@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Josh's Oura</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <h1>Josh's Oura</h1>
+    <p id="last-sync" class="last-sync" hidden></p>
+  </header>
+
+  <main>
+    <!-- Not-connected state -->
+    <section id="not-connected" class="notice" hidden>
+      <p id="not-connected-message"></p>
+      <a id="connect-button" class="button" href="/auth/connect" hidden>Connect Oura</a>
+    </section>
+
+    <!-- Error state -->
+    <section id="error" class="notice" hidden>
+      <p>Couldn't load data right now. Try again in a bit.</p>
+    </section>
+
+    <!-- Today -->
+    <section id="today" aria-label="Today's scores">
+      <p id="today-date" class="today-date"></p>
+      <div class="cards">
+        <article class="card skeleton" id="card-readiness">
+          <h2>Readiness</h2>
+          <div class="ring-wrap" data-metric="readiness"></div>
+        </article>
+        <article class="card skeleton" id="card-sleep">
+          <h2>Sleep</h2>
+          <div class="ring-wrap" data-metric="sleep"></div>
+        </article>
+        <article class="card skeleton" id="card-activity">
+          <h2>Activity</h2>
+          <div class="ring-wrap" data-metric="activity"></div>
+        </article>
+      </div>
+      <div class="stats">
+        <div class="stat skeleton" id="stat-sleep-time">
+          <span class="stat-label">Time asleep</span>
+          <span class="stat-value" data-stat="sleep-time">–</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trends -->
+    <section id="trends" aria-label="Trends" hidden>
+      <div class="trends-header">
+        <h2>Trends</h2>
+        <div class="toggle" role="group" aria-label="History range">
+          <button type="button" data-days="7" class="active">7 days</button>
+          <button type="button" data-days="30">30 days</button>
+        </div>
+      </div>
+      <div class="chart-box"><canvas id="scores-chart" height="220"></canvas></div>
+      <div class="chart-box"><canvas id="sleep-chart" height="180"></canvas></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div id="owner-controls" hidden>
+      <button type="button" id="refresh-button" class="link-button">Refresh data</button>
+      <button type="button" id="disconnect-button" class="link-button danger">Disconnect Oura</button>
+    </div>
+  </footer>
+</body>
+</html>

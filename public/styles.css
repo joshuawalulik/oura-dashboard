@@ -1,0 +1,215 @@
+/* Josh's Oura — mobile-first, dark-mode friendly */
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f3;
+  --card-bg: #ffffff;
+  --text: #1c1c1e;
+  --text-muted: #6e6e73;
+  --border: rgba(0, 0, 0, 0.08);
+  --good: #4cc38a;
+  --fair: #f0b429;
+  --low: #e5484d;
+  --accent: #5b8def;
+  --track: rgba(127, 127, 127, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101014;
+    --card-bg: #1b1b21;
+    --text: #f2f2f4;
+    --text-muted: #9b9ba3;
+    --border: rgba(255, 255, 255, 0.08);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+  max-width: 42rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.site-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.site-header h1 { font-size: 1.4rem; margin: 0; }
+
+.last-sync { margin: 0; font-size: 0.75rem; color: var(--text-muted); }
+
+.today-date {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.notice {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0.9rem 0.5rem 1rem;
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ring-wrap { display: flex; justify-content: center; min-height: 84px; }
+
+.ring-score {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.ring-empty {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.stat {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0.9rem 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.stat-label { color: var(--text-muted); font-size: 0.85rem; }
+.stat-value { font-size: 1.3rem; font-weight: 700; }
+
+#trends { margin-top: 2rem; }
+
+.trends-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.trends-header h2 { font-size: 1.1rem; margin: 0; }
+
+.toggle {
+  display: inline-flex;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.toggle button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.toggle button.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.chart-box {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.site-footer { margin-top: 3rem; text-align: center; }
+
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+  margin: 0 0.5rem;
+}
+
+.link-button.danger { color: var(--low); }
+
+/* Loading skeletons */
+.skeleton { position: relative; overflow: hidden; }
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(127, 127, 127, 0.12) 50%,
+    transparent 70%
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@media (max-width: 480px) {
+  .cards { gap: 0.5rem; }
+  .card { padding: 0.7rem 0.3rem 0.8rem; }
+  .ring-wrap { min-height: 72px; }
+}

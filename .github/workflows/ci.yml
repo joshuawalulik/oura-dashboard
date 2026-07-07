@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Typecheck & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Test
+        run: npx vitest run
+
+  deploy:
+    name: Deploy to Cloudflare
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Smoke test — site is up and fails closed
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://oura.joshuawalulik.com/)
+          echo "GET / -> $code"
+          # Unauthenticated requests must be redirected to Access (302) or
+          # rejected by the Worker (403). Anything else fails the deploy job.
+          if [ "$code" != "302" ] && [ "$code" != "403" ]; then
+            echo "Unexpected status — site may be open or down" >&2
+            exit 1
+          fi
