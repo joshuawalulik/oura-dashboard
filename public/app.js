@@ -197,7 +197,25 @@
     ]) {
       if (state.charts[key]) state.charts[key].destroy();
       state.charts[key] = new Chart($(canvasId), config);
+      dismissTooltipOnTouchEnd($(canvasId));
     }
+  }
+
+  // iOS Safari: Chart.js shows tooltips on touchstart/touchmove but never
+  // hides them (no touchend handling), so a tapped point's tooltip sticks
+  // around forever. Clear the active elements when the finger lifts.
+  function dismissTooltipOnTouchEnd(canvas) {
+    if (canvas.dataset.touchDismiss) return; // attach once per canvas
+    canvas.dataset.touchDismiss = "1";
+    const clear = () => {
+      const chart = Chart.getChart(canvas);
+      if (!chart) return;
+      chart.setActiveElements([]);
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      chart.update();
+    };
+    canvas.addEventListener("touchend", clear);
+    canvas.addEventListener("touchcancel", clear);
   }
 
   async function loadHistory({ refresh = false } = {}) {
