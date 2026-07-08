@@ -42,7 +42,7 @@
 
   /* ---- Today cards ---- */
 
-  function renderRing(container, score, delayMs = 0) {
+  function renderRing(container, score, { delayMs = 0, size = 84 } = {}) {
     container.textContent = "";
     if (score === null || score === undefined) {
       const span = document.createElement("span");
@@ -52,8 +52,8 @@
       return;
     }
     const svgNS = "http://www.w3.org/2000/svg";
-    const size = 84;
-    const radius = 34;
+    const radius = size / 2 - 9;
+    const strokeWidth = Math.max(6, Math.round(size / 12));
     const circumference = 2 * Math.PI * radius;
     const color = scoreColor(score);
 
@@ -72,7 +72,7 @@
       circle.setAttribute("r", radius);
       circle.setAttribute("fill", "none");
       circle.setAttribute("stroke", stroke);
-      circle.setAttribute("stroke-width", "7");
+      circle.setAttribute("stroke-width", String(strokeWidth));
     }
     // currentColor + CSS class give the arc its color and soft glow
     arc.setAttribute("class", "ring-arc");
@@ -119,9 +119,9 @@
       summary.date === today
         ? "Today"
         : `Latest: ${formatDateLabel(summary.date)}`;
-    renderRing(document.querySelector('[data-metric="readiness"]'), summary.readiness, 0);
-    renderRing(document.querySelector('[data-metric="sleep"]'), summary.sleep, 120);
-    renderRing(document.querySelector('[data-metric="activity"]'), summary.activity, 240);
+    renderRing(document.querySelector('[data-metric="readiness"]'), summary.readiness, { size: 112 });
+    renderRing(document.querySelector('[data-metric="sleep"]'), summary.sleep, { size: 78, delayMs: 120 });
+    renderRing(document.querySelector('[data-metric="activity"]'), summary.activity, { size: 78, delayMs: 240 });
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
   }

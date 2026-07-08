@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0a0e1a">
+  <meta name="theme-color" content="#0e0f11">
   <meta name="description" content="Private dashboard showing Josh's Oura readiness, sleep, and activity.">
   <title>Josh's Oura</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -35,18 +35,20 @@
     <section id="today" aria-label="Today's scores">
       <p id="today-date" class="today-date"></p>
       <div class="cards">
-        <article class="card skeleton" id="card-readiness">
+        <article class="card card--primary skeleton" id="card-readiness">
           <h2>Readiness</h2>
           <div class="ring-wrap" data-metric="readiness"></div>
         </article>
-        <article class="card skeleton" id="card-sleep">
-          <h2>Sleep</h2>
-          <div class="ring-wrap" data-metric="sleep"></div>
-        </article>
-        <article class="card skeleton" id="card-activity">
-          <h2>Activity</h2>
-          <div class="ring-wrap" data-metric="activity"></div>
-        </article>
+        <div class="cards-secondary">
+          <article class="card card--secondary skeleton" id="card-sleep">
+            <h2>Sleep</h2>
+            <div class="ring-wrap" data-metric="sleep"></div>
+          </article>
+          <article class="card card--secondary skeleton" id="card-activity">
+            <h2>Activity</h2>
+            <div class="ring-wrap" data-metric="activity"></div>
+          </article>
+        </div>
       </div>
       <div class="stats">
         <div class="stat skeleton" id="stat-sleep-time">
