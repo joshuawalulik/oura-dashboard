@@ -42,7 +42,7 @@
 
   /* ---- Today cards ---- */
 
-  function renderRing(container, score) {
+  function renderRing(container, score, delayMs = 0) {
     container.textContent = "";
     if (score === null || score === undefined) {
       const span = document.createElement("span");
@@ -79,8 +79,16 @@
     arc.style.color = color;
     arc.setAttribute("stroke-linecap", "round");
     arc.setAttribute("stroke-dasharray", circumference);
-    arc.setAttribute("stroke-dashoffset", circumference * (1 - score / 100));
+    // Start empty; releasing the offset a couple frames later lets the CSS
+    // transition draw the arc in (staggered per card via transition-delay).
+    arc.setAttribute("stroke-dashoffset", circumference);
+    arc.style.transitionDelay = `${delayMs}ms`;
     arc.setAttribute("transform", `rotate(-90 ${size / 2} ${size / 2})`);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        arc.setAttribute("stroke-dashoffset", circumference * (1 - score / 100));
+      })
+    );
 
     const text = document.createElementNS(svgNS, "text");
     text.setAttribute("x", "50%");
@@ -111,9 +119,9 @@
       summary.date === today
         ? "Today"
         : `Latest: ${formatDateLabel(summary.date)}`;
-    renderRing(document.querySelector('[data-metric="readiness"]'), summary.readiness);
-    renderRing(document.querySelector('[data-metric="sleep"]'), summary.sleep);
-    renderRing(document.querySelector('[data-metric="activity"]'), summary.activity);
+    renderRing(document.querySelector('[data-metric="readiness"]'), summary.readiness, 0);
+    renderRing(document.querySelector('[data-metric="sleep"]'), summary.sleep, 120);
+    renderRing(document.querySelector('[data-metric="activity"]'), summary.activity, 240);
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
   }
@@ -262,6 +270,11 @@
     $("trends").hidden = true;
   }
 
+  function hideError() {
+    $("error").hidden = true;
+    $("today").hidden = false;
+  }
+
   function renderLastSync(lastSync) {
     if (!lastSync) return;
     const el = $("last-sync");
@@ -330,13 +343,32 @@
     }
   });
 
-  $("disconnect-button").addEventListener("click", async () => {
-    if (!window.confirm("Disconnect Oura? The dashboard will stop showing data.")) {
-      return;
-    }
-    await fetch("/auth/disconnect", { method: "POST" });
-    window.location.reload();
+  $("retry-button").addEventListener("click", async () => {
+    hideError();
+    await init();
   });
+
+  // Two-step disconnect: first click arms the button, second click (within
+  // 4s) fires. Replaces the blocking window.confirm dialog.
+  {
+    const button = $("disconnect-button");
+    const label = button.textContent;
+    let disarmTimer;
+    button.addEventListener("click", async () => {
+      if (!button.classList.contains("armed")) {
+        button.classList.add("armed");
+        button.textContent = "Really disconnect?";
+        disarmTimer = setTimeout(() => {
+          button.classList.remove("armed");
+          button.textContent = label;
+        }, 4000);
+        return;
+      }
+      clearTimeout(disarmTimer);
+      await fetch("/auth/disconnect", { method: "POST" });
+      window.location.reload();
+    });
+  }
 
   init();
 })();
