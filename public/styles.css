@@ -1,30 +1,38 @@
-/* Josh's Oura — dark glass theme (Oura-app inspired, dark-committed) */
+/* Josh's Oura — instrument-panel theme: etched graphite surfaces, a
+   watch-bezel ring instead of a glowing progress arc, burnished copper
+   as the single accent. Dark-only by design (this is a night-table
+   readout, not a marketing surface). */
 :root {
   color-scheme: dark;
-  --bg: #0a0e1a;
-  --text: #eef1f8;
-  --text-muted: rgba(226, 233, 250, 0.6);
-  --text-faint: rgba(226, 233, 250, 0.38);
+  --bg: #0e0f11;
+  --text: #edeef1;
+  --text-muted: rgba(224, 227, 234, 0.62);
+  --text-faint: rgba(224, 227, 234, 0.36);
 
-  /* Glass surfaces */
-  --glass: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
-  --glass-border: rgba(255, 255, 255, 0.13);
-  --glass-highlight: rgba(255, 255, 255, 0.18);
-  --glass-shadow: 0 8px 32px rgba(2, 6, 18, 0.45);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+
+  /* Etched panel surfaces (flat — no blur) */
+  --panel: #17181b;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-highlight: rgba(255, 255, 255, 0.05);
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px rgba(0, 0, 0, 0.28);
+  --hairline: rgba(255, 255, 255, 0.09);
 
   /* Status colors (score rings): good / fair / pay-attention */
-  --good: #34d399;
-  --fair: #fbbf24;
-  --low: #f87171;
+  --good: #38caa0;
+  --fair: #eec158;
+  --low: #e97365;
 
-  /* Chart series — validated for CVD + contrast on the dark surface */
-  --chart-readiness: #0d9488;
-  --chart-sleep: #6366f1;
-  --chart-activity: #d97706;
+  /* Single UI accent: burnished copper, not brand-purple */
+  --accent: #e0a066;
+  --accent-strong: #9c5f28;
+  --track: rgba(255, 255, 255, 0.08);
+
+  /* Chart series — readiness reuses the accent (it's the featured metric) */
+  --chart-readiness: #e0a066;
+  --chart-sleep: #7fa3c9;
+  --chart-activity: #93a86a;
   --chart-grid: rgba(255, 255, 255, 0.07);
-
-  --accent: #818cf8;
-  --track: rgba(255, 255, 255, 0.1);
 }
 
 * { box-sizing: border-box; }
@@ -38,33 +46,43 @@
 html { background: var(--bg); }
 
 body {
+  position: relative;
   margin: 0 auto;
   padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem 3rem;
   max-width: 42rem;
   min-height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   background:
-    radial-gradient(50rem 34rem at 85% -10%, rgba(99, 102, 241, 0.22), transparent 60%),
-    radial-gradient(44rem 30rem at -15% 20%, rgba(13, 148, 136, 0.18), transparent 60%),
-    radial-gradient(40rem 40rem at 60% 115%, rgba(147, 51, 234, 0.14), transparent 60%),
+    radial-gradient(60rem 34rem at 50% -14%, rgba(255, 255, 255, 0.05), transparent 62%),
     var(--bg);
-  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Frosted glass card recipe */
+/* Fixed, non-scrolling grain — never applied to scrolling containers
+   (kills mobile FPS if it repaints on scroll). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.site-header, main, .site-footer { position: relative; z-index: 1; }
+
+/* Etched panel recipe: flat fill, hairline border, single 1px top
+   highlight. No blur, no glow — the goal is a machined surface, not glass. */
 .card,
 .stat,
 .chart-box,
-.notice,
-.toggle {
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid var(--glass-border);
-  border-radius: 24px;
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
+.notice {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  box-shadow: var(--panel-shadow), inset 0 1px 0 var(--panel-highlight);
 }
 
 .site-header {
@@ -74,6 +92,8 @@ body {
   gap: 1rem;
   flex-wrap: wrap;
   margin: 0.5rem 0 1.25rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .site-header h1 {
@@ -86,6 +106,7 @@ body {
 .last-sync {
   margin: 0;
   font-size: 0.75rem;
+  font-family: var(--font-mono);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -110,56 +131,74 @@ body {
   margin-top: 0.75rem;
   padding: 0.65rem 1.6rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(129, 140, 248, 0.85), rgba(99, 102, 241, 0.65));
-  border: 1px solid rgba(165, 180, 252, 0.45);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: var(--accent-strong);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
 
-.button:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 26px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
+.button:hover { filter: brightness(1.12); }
 
 .button:active {
-  transform: translateY(0) scale(0.98);
-  filter: brightness(0.96);
+  transform: scale(0.98);
+  filter: brightness(0.94);
 }
 
 /* Quieter sibling of .button for secondary actions (e.g. retry) */
 .button--ghost {
   background: rgba(255, 255, 255, 0.06);
-  border-color: var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: var(--panel-border);
   color: var(--text);
   font: inherit;
   font-weight: 600;
 }
 
-.button--ghost:hover {
-  filter: none;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
+.button--ghost:hover { background: rgba(255, 255, 255, 0.1); }
 
+/* Bento hierarchy: Readiness is the featured "master" score (the one
+   metric Oura's own app leads with), Sleep/Activity are secondary —
+   so the layout gives it real weight instead of three identical tiles. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.8rem;
+  grid-template-columns: 1fr;
+  grid-template-areas: "primary" "secondary";
+  gap: 0.7rem;
+}
+
+.card--primary { grid-area: primary; }
+
+.cards-secondary {
+  grid-area: secondary;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+@media (min-width: 560px) {
+  .cards {
+    grid-template-columns: 3fr 2fr;
+    grid-template-areas: "primary secondary";
+    align-items: stretch;
+  }
+  .cards-secondary {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
 }
 
 .card {
-  padding: 1rem 0.5rem 1.1rem;
+  padding: 1.1rem 0.5rem 1.2rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .card h2 {
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.8rem;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -167,20 +206,47 @@ body {
   color: var(--text-muted);
 }
 
-.ring-wrap { display: flex; justify-content: center; min-height: 84px; }
+.ring-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+
+.card--primary .ring-wrap { --ring-box: 132px; min-height: var(--ring-box); }
+.card--secondary .ring-wrap { --ring-box: 92px; min-height: var(--ring-box); }
+
+/* Watch-bezel tick ring, sitting just outside the score arc. Pure CSS,
+   independent of the SVG the score arc is drawn in. */
+.ring-wrap::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--ring-box);
+  height: var(--ring-box);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.4) 0deg 1.6deg,
+    transparent 1.6deg 30deg
+  );
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 82%, #000 85% 93%, transparent 96% 100%);
+  mask: radial-gradient(circle closest-side, transparent 0 82%, #000 85% 93%, transparent 96% 100%);
+  pointer-events: none;
+}
+
+.ring-wrap svg { position: relative; z-index: 1; }
 
 .ring-score {
-  font-size: 1.65rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
-/* Soft neon glow on the score arc; draws in from empty on load (app.js
-   sets the starting dashoffset, then releases it a frame later). */
+.card--primary .ring-score { font-size: 2rem; }
+.card--secondary .ring-score { font-size: 1.25rem; }
+
+/* Crisp, flat arc — no neon drop-shadow. The tick bezel supplies the
+   "instrument" read; the arc itself should look machined, not lit up. */
 .ring-arc {
-  filter: drop-shadow(0 0 6px currentColor);
-  opacity: 0.95;
   transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -193,8 +259,8 @@ body {
 .stats {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.8rem;
-  margin-top: 0.8rem;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
 }
 
 .stat {
@@ -213,9 +279,10 @@ body {
 }
 
 .stat-value {
+  font-family: var(--font-mono);
   font-size: 1.45rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -226,6 +293,8 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.9rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .trends-header h2 {
@@ -239,6 +308,7 @@ body {
   display: inline-flex;
   border-radius: 999px;
   padding: 3px;
+  border: 1px solid var(--panel-border);
 }
 
 .toggle button {
@@ -262,10 +332,8 @@ body {
 .toggle button:active { transform: scale(0.97); }
 
 .toggle button.active {
-  background: rgba(129, 140, 248, 0.28);
-  border-color: rgba(165, 180, 252, 0.4);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  color: var(--text);
+  background: var(--accent-strong);
+  color: #fff;
   font-weight: 600;
 }
 
@@ -313,11 +381,11 @@ body {
 
 .link-button.danger { color: var(--low); }
 
-.link-button.danger:hover { color: #fca5a5; }
+.link-button.danger:hover { color: #f3a89d; }
 
 /* First click arms the disconnect; second click within a few seconds fires. */
 .link-button.danger.armed {
-  color: #fca5a5;
+  color: #f3a89d;
   font-weight: 600;
   text-decoration-style: double;
 }
@@ -344,6 +412,7 @@ body {
 .version {
   margin: 0.9rem 0 0;
   font-size: 0.68rem;
+  font-family: var(--font-mono);
   letter-spacing: 0.08em;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -363,7 +432,7 @@ main a { color: var(--accent); }
   background: linear-gradient(
     100deg,
     transparent 30%,
-    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.06) 50%,
     transparent 70%
   );
   animation: shimmer 1.4s infinite;
@@ -375,9 +444,10 @@ main a { color: var(--accent); }
 }
 
 @media (max-width: 480px) {
-  .cards { gap: 0.55rem; }
-  .card { padding: 0.8rem 0.3rem 0.9rem; border-radius: 20px; }
-  .ring-wrap { min-height: 72px; }
+  .card { padding: 0.9rem 0.3rem 1rem; border-radius: 14px; }
+  .card--primary .ring-wrap { --ring-box: 118px; }
+  .card--secondary .ring-wrap { --ring-box: 80px; }
+  .card--primary .ring-score { font-size: 1.75rem; }
   .site-header h1 { font-size: 1.3rem; }
 }
 
@@ -385,5 +455,5 @@ main a { color: var(--accent); }
   .skeleton::after { animation: none; }
   .ring-arc { transition: none; }
   .button, .toggle button { transition: none; }
-  .button:hover, .button:active, .toggle button:active { transform: none; }
+  .button:active, .toggle button:active { transform: none; }
 }
