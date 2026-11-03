@@ -12,8 +12,8 @@ Cloudflare Access · Chart.js (self-hosted) · Vitest (`workerd` pool) · GitHub
 
 ## What it does
 
-- Today's readiness, sleep, and activity scores as glowing rings, plus time
-  asleep and 7/30-day trend charts, in a dark glassmorphism UI
+- Today's readiness, sleep, and activity scores as rings, plus time asleep
+  and 7/30-day trend charts, in a dark instrument-panel UI
 - Pulls from the Oura API v2 over OAuth2, with automatic access-token refresh
   and refresh-token rotation persisted in KV
 - Exactly two email addresses can see it; only the owner can connect or
