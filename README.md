@@ -10,6 +10,21 @@ broken or open deployment.
 **Stack:** TypeScript · [Hono](https://hono.dev) · Cloudflare Workers + KV ·
 Cloudflare Access · Chart.js (self-hosted) · Vitest (`workerd` pool) · GitHub Actions
 
+## Live demo
+
+**[oura-demo.joshuawalulik.com](https://oura-demo.joshuawalulik.com)** — no
+login, click around.
+
+The demo is the same Worker code deployed separately
+(`wrangler deploy --env demo`) with `DEMO_MODE=1`: every number is
+synthesized ([src/demo.ts](src/demo.ts)) as a pure function of the calendar
+date — seeded PRNG, weekly sleep rhythm, the odd rough night that drags
+readiness down and resting heart rate up — so it's stable within a day and
+drifts day to day without rewriting history. There's no Access in front and
+nothing private behind: the demo Worker has **no KV namespace, no secrets,
+and no OAuth routes** (they 404). The real deployment below stays locked to
+two email addresses.
+
 ## What it does
 
 - Today's readiness, sleep, and activity scores as rings, plus time asleep
@@ -88,7 +103,7 @@ layer and the owner/viewer authorization split on top of it.
 
 ## Testing & CI/CD
 
-37 tests run in the real Workers runtime via
+57 tests run in the real Workers runtime via
 `@cloudflare/vitest-pool-workers` — JWT verification against generated RSA
 keys, token refresh/rotation, field-allowlist leak checks, and full
 request-level tests with Oura and the Access JWKS mocked (no live calls).
@@ -96,7 +111,9 @@ request-level tests with Oura and the Access JWKS mocked (no live calls).
 Every push runs typecheck + tests; merges to `main` deploy via
 `wrangler-action` and then **smoke-test the live site, asserting
 unauthenticated requests are turned away** — proving each deploy is up
-*and* fails closed. Superseded runs auto-cancel; docs-only commits skip CI.
+*and* fails closed. The public demo deploys after production and gets the
+opposite smoke test: it must answer *without* auth and still declare
+`"demo": true`. Superseded runs auto-cancel; docs-only commits skip CI.
 
 ## Observability
 

@@ -5,6 +5,10 @@ CF_ACCESS_AUD = "your-access-application-aud-tag"
 CF_ACCESS_TEAM_DOMAIN = "yourteam.cloudflareaccess.com"
 OWNER_EMAIL = "owner@example.com"
 
+# Optional: "1" serves the public demo locally (synthetic data, no auth, no
+# Oura needed) — or run `npx wrangler dev --var DEMO_MODE:1` without editing.
+# DEMO_MODE = "1"
+
 # DEV ONLY: skips Cloudflare Access JWT validation and treats you as the owner.
 # There is no Access in front of `wrangler dev`, so this is required locally.
 # NEVER set this in production — and the code also ignores it there: the

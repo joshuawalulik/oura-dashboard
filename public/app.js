@@ -697,6 +697,7 @@
     const dash = await fetchJson(`/api/dashboard?${params}`);
 
     state.isOwner = dash.viewer_is_owner;
+    $("demo-banner").hidden = !dash.demo;
     if (dash.version) {
       $("app-version").textContent = `build ${dash.version}`;
     }
