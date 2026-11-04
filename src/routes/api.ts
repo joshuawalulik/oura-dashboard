@@ -6,16 +6,22 @@ import { Hono } from "hono";
 import type { Env, AppVariables } from "../types";
 import { NotConnectedError, TOKENS_KV_KEY, fetchOuraCollection } from "../oura";
 import {
+  filterReadinessDocs,
   filterScoreDocs,
   filterSleepPeriodDocs,
+  hasAnyData,
   latestRecord,
   mergeHistory,
   type DayRecord,
+  type ReadinessDoc,
   type ScoreDoc,
   type SleepPeriodDoc,
 } from "../filter";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
+// Bump whenever the filtered shapes change: cached entries written by an
+// older build would otherwise serve without the new fields for up to 3h.
+const CACHE_VERSION = "v2";
 const LAST_SYNC_KV_KEY = "last_sync";
 
 function isoDate(date: Date): string {
@@ -45,7 +51,7 @@ async function cachedCollection<T>(
   filter: (docs: unknown[]) => T[],
   bypassCache: boolean
 ): Promise<T[]> {
-  const cacheKey = `cache:${endpoint}:${start}:${end}`;
+  const cacheKey = `cache:${CACHE_VERSION}:${endpoint}:${start}:${end}`;
   if (!bypassCache) {
     const hit = await env.OURA_KV.get(cacheKey);
     if (hit) return JSON.parse(hit) as T[];
@@ -76,7 +82,7 @@ async function loadHistory(
 ): Promise<DayRecord[]> {
   const { start, end } = dateRange(days);
   const [readiness, sleep, activity, sleepPeriods] = await Promise.all([
-    cachedCollection<ScoreDoc>(env, "daily_readiness", start, end, filterScoreDocs, bypassCache),
+    cachedCollection<ReadinessDoc>(env, "daily_readiness", start, end, filterReadinessDocs, bypassCache),
     cachedCollection<ScoreDoc>(env, "daily_sleep", start, end, filterScoreDocs, bypassCache),
     cachedCollection<ScoreDoc>(env, "daily_activity", start, end, filterScoreDocs, bypassCache),
     cachedCollection<SleepPeriodDoc>(env, "sleep", start, end, filterSleepPeriodDocs, bypassCache),
@@ -84,12 +90,7 @@ async function loadHistory(
   // Trim the lookahead day off the displayed range unless it has data.
   const merged = mergeHistory(start, end, readiness, sleep, activity, sleepPeriods);
   const last = merged[merged.length - 1];
-  const hasData =
-    last &&
-    (last.readiness !== null ||
-      last.sleep !== null ||
-      last.activity !== null ||
-      last.total_sleep_seconds !== null);
+  const hasData = last && hasAnyData(last);
   return hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
 }
 
@@ -162,6 +163,9 @@ apiRoutes.get("/summary", async (c) => {
       sleep: latest.sleep,
       activity: latest.activity,
       total_sleep_seconds: latest.total_sleep_seconds,
+      resting_heart_rate: latest.resting_heart_rate,
+      average_hrv: latest.average_hrv,
+      temperature_deviation: latest.temperature_deviation,
       last_sync: lastSync,
     });
   } catch (err) {

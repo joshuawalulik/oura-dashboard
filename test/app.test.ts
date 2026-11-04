@@ -247,7 +247,14 @@ describe("/api/dashboard", () => {
     await connectTokens();
     const today = new Date().toISOString().slice(0, 10);
     ouraGet("/v2/usercollection/daily_readiness", {
-      data: [{ day: today, score: 91, contributors: { hrv_balance: 80 } }],
+      data: [
+        {
+          day: today,
+          score: 91,
+          temperature_deviation: 0.2,
+          contributors: { hrv_balance: 80 },
+        },
+      ],
       next_token: null,
     });
     ouraGet("/v2/usercollection/daily_sleep", {
@@ -259,7 +266,16 @@ describe("/api/dashboard", () => {
       next_token: null,
     });
     ouraGet("/v2/usercollection/sleep", {
-      data: [{ day: today, type: "long_sleep", total_sleep_duration: 25200, average_heart_rate: 50 }],
+      data: [
+        {
+          day: today,
+          type: "long_sleep",
+          total_sleep_duration: 25200,
+          lowest_heart_rate: 52,
+          average_hrv: 41,
+          average_heart_rate: 50,
+        },
+      ],
       next_token: null,
     });
 
@@ -275,12 +291,21 @@ describe("/api/dashboard", () => {
     };
     expect(body.connected).toBe(true);
     expect(body.viewer_is_owner).toBe(false);
-    expect(body.summary).toMatchObject({ date: today, readiness: 91, sleep: 77, activity: 68 });
+    expect(body.summary).toMatchObject({
+      date: today,
+      readiness: 91,
+      sleep: 77,
+      activity: 68,
+      resting_heart_rate: 52,
+      average_hrv: 41,
+      temperature_deviation: 0.2,
+    });
     expect(body.history.days).toBe(30);
     expect(body.history.data).toHaveLength(30);
     const raw = JSON.stringify(body);
     expect(raw).not.toContain("steps");
-    expect(raw).not.toContain("heart_rate");
+    expect(raw).not.toContain("average_heart_rate");
+    expect(raw).not.toContain("lowest_heart_rate"); // served as resting_heart_rate
     expect(raw).not.toContain("contributors");
   });
 });
@@ -337,6 +362,7 @@ describe("/api data routes", () => {
           total_sleep_duration: 26460,
           average_heart_rate: 51,
           lowest_heart_rate: 44,
+          average_hrv: 38,
         },
       ],
       next_token: null,
@@ -352,12 +378,15 @@ describe("/api data routes", () => {
     expect(summary.sleep).toBe(79);
     expect(summary.activity).toBe(65);
     expect(summary.total_sleep_seconds).toBe(26460);
+    expect(summary.resting_heart_rate).toBe(44);
+    expect(summary.average_hrv).toBe(38);
+    expect(summary.temperature_deviation).toBe(0.1);
     expect(typeof summary.last_sync).toBe("string");
 
     // Owner-excluded and non-allowlisted fields must never appear.
     const raw = JSON.stringify(summary);
     expect(raw).not.toContain("steps");
-    expect(raw).not.toContain("heart_rate");
+    expect(raw).not.toContain("average_heart_rate");
     expect(raw).not.toContain("contributors");
     expect(raw).not.toContain("calories");
 
