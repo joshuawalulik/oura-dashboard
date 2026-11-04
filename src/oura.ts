@@ -51,7 +51,16 @@ export async function getAccessToken(
 ): Promise<string> {
   const raw = await env.OURA_KV.get(TOKENS_KV_KEY);
   if (!raw) throw new NotConnectedError();
-  const tokens = JSON.parse(raw) as StoredTokens;
+  let tokens: StoredTokens;
+  try {
+    tokens = JSON.parse(raw) as StoredTokens;
+  } catch {
+    // Corrupt record: drop it and degrade to "not connected". Never let the
+    // JSON.parse error propagate — V8 quotes the parsed input in its message,
+    // which would put token material into logs.
+    await env.OURA_KV.delete(TOKENS_KV_KEY);
+    throw new NotConnectedError();
+  }
 
   if (tokens.expires_at - Date.now() > REFRESH_MARGIN_MS) {
     return tokens.access_token;
