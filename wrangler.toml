@@ -29,6 +29,22 @@ run_worker_first = true
 binding = "OURA_KV"
 id = "fb9c60d3753b4c0caf75f0965aa1b70c"
 
+# Longitudinal history (readiness/sleep/vitals per day) for baselines and
+# patterns. KV keeps its roles (tokens + 3h response cache); D1 is history
+# only. Schema changes: add a migration file, then
+# `wrangler d1 migrations apply oura-days --remote`.
+[[d1_databases]]
+binding = "OURA_DB"
+database_name = "oura-days"
+database_id = "86e45984-98b4-4e30-80bf-cd7845af177b"
+migrations_dir = "migrations"
+
+# Nightly ingest: upserts the last ~7 days into D1 (idempotent — late ring
+# syncs self-heal on the next run). 13:00 UTC lands after the usual morning
+# sync in US time zones.
+[triggers]
+crons = ["0 13 * * *"]
+
 # Secrets (set via `wrangler secret put <NAME>`, never committed):
 #   OURA_CLIENT_ID, OURA_CLIENT_SECRET, CF_ACCESS_AUD, CF_ACCESS_TEAM_DOMAIN, OWNER_EMAIL
 
@@ -44,6 +60,12 @@ routes = [
 
 [env.demo.vars]
 DEMO_MODE = "1"
+
+# `triggers` IS inherited by environments (unlike kv/d1/vars/routes), so the
+# demo Worker must explicitly opt out of the nightly ingest cron: it has no
+# D1, no KV, and nothing to ingest.
+[env.demo.triggers]
+crons = []
 
 [env.demo.observability]
 enabled = true
