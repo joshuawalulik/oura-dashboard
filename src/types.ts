@@ -9,7 +9,10 @@ export interface Env {
   CF_ACCESS_TEAM_DOMAIN: string;
   /** The ring owner's email; only this user may run /auth/* flows. */
   OWNER_EMAIL: string;
-  /** DEV ONLY — "1" skips Access JWT validation under `wrangler dev`. */
+  /**
+   * DEV ONLY — "1" skips Access JWT validation under `wrangler dev`.
+   * Ignored whenever GIT_SHA is set, i.e. in every CI-deployed build.
+   */
   ACCESS_DEV_BYPASS?: string;
   /** Git commit SHA injected by CI (`--var GIT_SHA:...`); absent in dev. */
   GIT_SHA?: string;

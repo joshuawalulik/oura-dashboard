@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { SELF, env, fetchMock } from "cloudflare:test";
 import { makeTestKeys, accessPayload, type TestKeys } from "./helpers";
 import { TOKENS_KV_KEY } from "../src/oura";
+import app from "../src/index";
 import type { Env } from "../src/types";
 
 const testEnv = env as unknown as Env;
@@ -67,12 +68,44 @@ describe("Access enforcement", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects (403, not 500) a JWT whose signature is not decodable", async () => {
+    const garbled = ownerJwt.split(".").slice(0, 2).join(".") + ".%%%";
+    const res = await SELF.fetch("https://dashboard.test/api/status", {
+      headers: { "Cf-Access-Jwt-Assertion": garbled },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("ignores ACCESS_DEV_BYPASS when GIT_SHA is set (deployed build)", async () => {
+    const res = await app.fetch(new Request("https://dashboard.test/api/status"), {
+      ...testEnv,
+      ACCESS_DEV_BYPASS: "1",
+      GIT_SHA: "deadbeefcafe",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("honors ACCESS_DEV_BYPASS under local dev (no GIT_SHA)", async () => {
+    const res = await app.fetch(new Request("https://dashboard.test/api/status"), {
+      ...testEnv,
+      ACCESS_DEV_BYPASS: "1",
+      GIT_SHA: undefined,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { viewer_is_owner: boolean };
+    expect(body.viewer_is_owner).toBe(true);
+  });
+
   it("serves the dashboard with security headers for a valid user", async () => {
     const res = await SELF.fetch("https://dashboard.test/", {
       headers: { "Cf-Access-Jwt-Assertion": partnerJwt },
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
+    expect(res.headers.get("Content-Security-Policy")).toContain("form-action 'self'");
+    expect(res.headers.get("Strict-Transport-Security")).toBe(
+      "max-age=31536000; includeSubDomains"
+    );
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
     expect(res.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(await res.text()).toContain("Josh's Oura");
@@ -168,11 +201,28 @@ describe("owner-only auth routes", () => {
     expect(replay.status).toBe(400);
   });
 
+  it("rejects a cross-origin POST to /auth/disconnect (CSRF)", async () => {
+    await connectTokens();
+    const res = await SELF.fetch("https://dashboard.test/auth/disconnect", {
+      method: "POST",
+      headers: {
+        "Cf-Access-Jwt-Assertion": ownerJwt,
+        Origin: "https://evil.example",
+      },
+    });
+    expect(res.status).toBe(403);
+    expect(await testEnv.OURA_KV.get(TOKENS_KV_KEY)).not.toBeNull();
+  });
+
   it("disconnect deletes the token record", async () => {
     await connectTokens();
     const res = await SELF.fetch("https://dashboard.test/auth/disconnect", {
       method: "POST",
-      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+      headers: {
+        "Cf-Access-Jwt-Assertion": ownerJwt,
+        // Same-origin requests (what the dashboard's fetch() sends) pass.
+        Origin: "https://dashboard.test",
+      },
     });
     expect(res.status).toBe(200);
     expect(await testEnv.OURA_KV.get(TOKENS_KV_KEY)).toBeNull();
@@ -242,6 +292,16 @@ describe("/api data routes", () => {
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "not_connected" });
+  });
+
+  it("treats a corrupt token record as not connected and deletes it", async () => {
+    await testEnv.OURA_KV.put(TOKENS_KV_KEY, "not json {");
+    const res = await SELF.fetch("https://dashboard.test/api/summary", {
+      headers: { "Cf-Access-Jwt-Assertion": partnerJwt },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "not_connected" });
+    expect(await testEnv.OURA_KV.get(TOKENS_KV_KEY)).toBeNull();
   });
 
   it("serves only allowlisted fields and caches upstream responses", async () => {

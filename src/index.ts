@@ -53,7 +53,11 @@ app.use("*", async (c, next) => {
     "Content-Security-Policy",
     "default-src 'self'; script-src 'self'; " +
       "style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
-      "frame-ancestors 'none'; base-uri 'none'"
+      "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+  );
+  c.res.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains"
   );
   c.res.headers.set("X-Frame-Options", "DENY");
   c.res.headers.set("Referrer-Policy", "no-referrer");
@@ -63,7 +67,9 @@ app.use("*", async (c, next) => {
 // Access JWT validation on every request (defense in depth, spec §4 layer 2).
 app.use("*", async (c, next) => {
   // Local development only: `wrangler dev` has no Access in front of it.
-  if (c.env.ACCESS_DEV_BYPASS === "1") {
+  // CI always deploys with GIT_SHA set, so the bypass is structurally inert
+  // in production even if the var were ever set there by mistake.
+  if (c.env.ACCESS_DEV_BYPASS === "1" && !c.env.GIT_SHA) {
     c.set("email", c.env.OWNER_EMAIL.toLowerCase());
     c.set("isOwner", true);
     return next();
