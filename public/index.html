@@ -2,12 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0c0e">
   <meta name="description" content="Private dashboard showing Josh's Oura readiness, sleep, and activity.">
+  <!-- Standalone home-screen app on iOS (which ignores manifest icons and
+       needs these legacy tags). Behind Cloudflare Access the manifest fetch
+       must carry the Access cookie: the spec default is credentials "omit",
+       so use-credentials is required or the request 403s. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Josh's Oura">
   <title>Josh's Oura</title>
+  <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preload" href="/fonts/b612mono-700.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/b612-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
@@ -96,6 +105,13 @@
       <div id="trends-error" class="trends-error" hidden>
         <p>Couldn't load the trend charts right now.</p>
         <button type="button" id="trends-retry-button" class="button button--ghost">Try again</button>
+      </div>
+      <div class="chart-box heatmap-box">
+        <div class="chart-head">
+          <h3 id="heatmap-title">Readiness by day</h3>
+          <ul class="series-key heatmap-key" id="heatmap-key" aria-hidden="true"></ul>
+        </div>
+        <div class="heatmap-strip skeleton" id="heatmap-strip"></div>
       </div>
       <div class="chart-box">
         <div class="chart-head">

@@ -112,6 +112,32 @@ describe("Access enforcement", () => {
   });
 });
 
+describe("PWA assets", () => {
+  it("serves the manifest with the manifest content type (nosniff is set)", async () => {
+    const res = await SELF.fetch("https://dashboard.test/manifest.webmanifest", {
+      headers: { "Cf-Access-Jwt-Assertion": partnerJwt },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/manifest+json");
+    expect(res.headers.get("Content-Security-Policy")).toContain("manifest-src 'self'");
+    const manifest = (await res.json()) as { display: string; icons: Array<{ src: string }> };
+    expect(manifest.display).toBe("standalone");
+    expect(manifest.icons.map((i) => i.src)).toEqual(["/icon-192.png", "/icon-512.png"]);
+  });
+
+  it("stamps js/css URLs in HTML but leaves the manifest link alone", async () => {
+    const res = await SELF.fetch("https://dashboard.test/", {
+      headers: { "Cf-Access-Jwt-Assertion": partnerJwt },
+    });
+    const html = await res.text();
+    expect(html).toContain('href="/styles.css?v=dev"');
+    expect(html).toContain('src="/app.js?v=dev"');
+    // The manifest must keep a stable URL: iOS re-fetches it by the URL the
+    // install captured, and a per-deploy ?v= would churn that for no gain.
+    expect(html).toContain('href="/manifest.webmanifest"');
+  });
+});
+
 describe("/api/status", () => {
   it("identifies the owner and reports not connected", async () => {
     const res = await SELF.fetch("https://dashboard.test/api/status", {

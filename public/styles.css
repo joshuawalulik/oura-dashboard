@@ -585,6 +585,35 @@ body::before {
 .key-swatch--sleep { background: var(--m-sleep); }
 .key-swatch--activity { background: var(--m-activity); }
 
+/* ---- Readiness heatmap: a row of day lamps above the charts ----
+   One rounded square per day, filled in the status-lamp color; days
+   without a score are outline-only. Status colors are allowed here
+   because each cell IS a status word made visible — the strip is the
+   one surface where status, not metric identity, is the story. */
+
+.heatmap-strip { min-height: 12px; border-radius: 4px; }
+
+/* Cells stay lamp-sized however few days exist: height is capped and the
+   row left-aligns (xMinYMid), so a 7-day strip is 7 small lamps, not 7
+   slabs stretched to the panel width. */
+.heatmap-strip svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 16px;
+}
+
+/* Status swatches in the key are squares (day cells), not series lines */
+.heatmap-key .key-swatch {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+}
+
+.key-swatch--good { background: var(--status-good); }
+.key-swatch--fair { background: var(--status-fair); }
+.key-swatch--low { background: var(--status-low); }
+
 /* Chart.js needs a fixed-height positioned parent when responsive +
    maintainAspectRatio:false, or it resizes itself in an endless loop. */
 .chart-canvas { position: relative; width: 100%; }
