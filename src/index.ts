@@ -53,6 +53,7 @@ app.use("*", async (c, next) => {
     "Content-Security-Policy",
     "default-src 'self'; script-src 'self'; " +
       "style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
+      "manifest-src 'self'; " +
       "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
   );
   c.res.headers.set(
@@ -135,6 +136,11 @@ app.all("*", async (c) => {
   const response = new Response(assetResponse.body, assetResponse);
   if (/\.(js|css)$/.test(pathname)) {
     response.headers.set("Cache-Control", "public, max-age=3600");
+  }
+  // X-Content-Type-Options: nosniff means the manifest must declare its type
+  // itself; don't trust the assets binding to know the .webmanifest extension.
+  if (pathname.endsWith(".webmanifest") && response.ok) {
+    response.headers.set("Content-Type", "application/manifest+json");
   }
   return response;
 });
