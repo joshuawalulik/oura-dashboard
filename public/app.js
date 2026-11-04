@@ -6,15 +6,29 @@
 
   const $ = (id) => document.getElementById(id);
 
-  function scoreColor(score) {
-    const styles = getComputedStyle(document.documentElement);
-    if (score >= 85) return styles.getPropertyValue("--good").trim();
-    if (score >= 70) return styles.getPropertyValue("--fair").trim();
-    return styles.getPropertyValue("--low").trim();
-  }
-
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  /* Color encodes metric identity everywhere (dials and charts tell one
+     story); score status is a quiet word at an amber floor, never a
+     recolored number. */
+  const METRICS = {
+    readiness: { label: "Readiness", colorVar: "--m-readiness" },
+    sleep: { label: "Sleep", colorVar: "--m-sleep" },
+    activity: { label: "Activity", colorVar: "--m-activity" },
+  };
+
+  function scoreStatus(score) {
+    if (score >= 85) return { word: "Good", colorVar: "--status-good" };
+    if (score >= 70) return { word: "Fair", colorVar: "--status-fair" };
+    return { word: "Low", colorVar: "--status-low" };
+  }
+
+  // Polite announcements for screen readers (state swaps are otherwise silent).
+  function announce(message) {
+    const el = $("sr-status");
+    if (el) el.textContent = message;
   }
 
   async function fetchJson(url, options) {
@@ -32,7 +46,7 @@
     if (seconds === null || seconds === undefined) return "–";
     const h = Math.floor(seconds / 3600);
     const m = Math.round((seconds % 3600) / 60);
-    return `${h}:${String(m).padStart(2, "0")}`;
+    return `${h}h ${String(m).padStart(2, "0")}m`;
   }
 
   function formatDateLabel(isoDate) {
@@ -40,67 +54,121 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
-  /* ---- Today cards ---- */
+  /* ---- Gauges ----
+     A 270° instrument dial: SVG tick ring, flat track, metric-colored
+     value arc, mono numeral, status word resting in the open bottom gap. */
 
-  function renderRing(container, score, { delayMs = 0, size = 84 } = {}) {
+  const GAUGE = {
+    r: 37, // arc radius in a 100-unit viewBox
+    sweep: 0.75, // 270° of the circle
+    startAngle: 135, // degrees; bottom-left, sweeping clockwise
+  };
+
+  function polar(cx, cy, r, deg) {
+    const rad = (deg * Math.PI) / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  }
+
+  function renderGauge(container, score, { delayMs = 0, metric = "readiness", ticks = 20 } = {}) {
+    // Small dials need heavier tick strokes: at ~96px rendered size a
+    // 0.9-unit stroke lands sub-pixel and reads as fuzz, not ticks.
+    const small = ticks <= 12;
+    const minorW = small ? 1.4 : 0.9;
+    const majorW = small ? 2 : 1.4;
     container.textContent = "";
-    if (score === null || score === undefined) {
-      const span = document.createElement("span");
-      span.className = "ring-empty";
-      span.textContent = "No data yet";
-      container.appendChild(span);
-      return;
-    }
     const svgNS = "http://www.w3.org/2000/svg";
-    const radius = size / 2 - 9;
-    const strokeWidth = Math.max(6, Math.round(size / 12));
-    const circumference = 2 * Math.PI * radius;
-    const color = scoreColor(score);
+    const { label, colorVar } = METRICS[metric];
+    const empty = score === null || score === undefined;
+    const status = empty ? null : scoreStatus(score);
 
     const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("width", size);
-    svg.setAttribute("height", size);
-    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    svg.setAttribute("viewBox", "0 0 100 100");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", `Score ${score} out of 100`);
-
-    const track = document.createElementNS(svgNS, "circle");
-    const arc = document.createElementNS(svgNS, "circle");
-    for (const [circle, stroke] of [[track, cssVar("--track")], [arc, "currentColor"]]) {
-      circle.setAttribute("cx", size / 2);
-      circle.setAttribute("cy", size / 2);
-      circle.setAttribute("r", radius);
-      circle.setAttribute("fill", "none");
-      circle.setAttribute("stroke", stroke);
-      circle.setAttribute("stroke-width", String(strokeWidth));
-    }
-    // currentColor + CSS class give the arc its color and soft glow
-    arc.setAttribute("class", "ring-arc");
-    arc.style.color = color;
-    arc.setAttribute("stroke-linecap", "round");
-    arc.setAttribute("stroke-dasharray", circumference);
-    // Start empty; releasing the offset a couple frames later lets the CSS
-    // transition draw the arc in (staggered per card via transition-delay).
-    arc.setAttribute("stroke-dashoffset", circumference);
-    arc.style.transitionDelay = `${delayMs}ms`;
-    arc.setAttribute("transform", `rotate(-90 ${size / 2} ${size / 2})`);
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        arc.setAttribute("stroke-dashoffset", circumference * (1 - score / 100));
-      })
+    svg.setAttribute(
+      "aria-label",
+      empty ? `${label}: no data yet` : `${label} ${score} out of 100 — ${status.word}`
     );
 
+    // Tick ring: minor ticks along the sweep, longer majors at 0/25/50/75/100.
+    const tickGroup = document.createElementNS(svgNS, "g");
+    for (let i = 0; i <= ticks; i++) {
+      const major = i % (ticks / 4) === 0;
+      const deg = GAUGE.startAngle + (i / ticks) * 360 * GAUGE.sweep;
+      const [x1, y1] = polar(50, 50, 47, deg);
+      const [x2, y2] = polar(50, 50, major ? 42 : 44.5, deg);
+      const line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", x1.toFixed(2));
+      line.setAttribute("y1", y1.toFixed(2));
+      line.setAttribute("x2", x2.toFixed(2));
+      line.setAttribute("y2", y2.toFixed(2));
+      line.setAttribute("stroke", major ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.18)");
+      line.setAttribute("stroke-width", String(major ? majorW : minorW));
+      line.setAttribute("stroke-linecap", "round");
+      tickGroup.appendChild(line);
+    }
+
+    const circumference = 2 * Math.PI * GAUGE.r;
+    const trackLength = circumference * GAUGE.sweep;
+
+    const track = document.createElementNS(svgNS, "circle");
+    track.setAttribute("cx", "50");
+    track.setAttribute("cy", "50");
+    track.setAttribute("r", String(GAUGE.r));
+    track.setAttribute("fill", "none");
+    track.setAttribute("stroke", cssVar("--track"));
+    track.setAttribute("stroke-width", "6");
+    track.setAttribute("stroke-linecap", "round");
+    track.setAttribute("stroke-dasharray", `${trackLength} ${circumference}`);
+    track.setAttribute("transform", `rotate(${GAUGE.startAngle} 50 50)`);
+
+    svg.append(tickGroup, track);
+
+    if (!empty) {
+      const arcLength = trackLength * (score / 100);
+      const arc = document.createElementNS(svgNS, "circle");
+      arc.setAttribute("class", "gauge-arc");
+      arc.setAttribute("cx", "50");
+      arc.setAttribute("cy", "50");
+      arc.setAttribute("r", String(GAUGE.r));
+      arc.setAttribute("fill", "none");
+      arc.setAttribute("stroke", cssVar(colorVar));
+      arc.setAttribute("stroke-width", "6");
+      arc.setAttribute("stroke-linecap", "round");
+      arc.setAttribute("stroke-dasharray", `${arcLength} ${circumference}`);
+      // Start hidden; a forced synchronous reflow (not rAF, which background
+      // tabs throttle for seconds) commits the hidden state, then releasing
+      // the offset lets the CSS transition sweep the arc in, staggered per
+      // dial via transition-delay.
+      arc.setAttribute("stroke-dashoffset", String(arcLength));
+      arc.style.transitionDelay = `${delayMs}ms`;
+      arc.setAttribute("transform", `rotate(${GAUGE.startAngle} 50 50)`);
+      svg.appendChild(arc);
+    }
+
     const text = document.createElementNS(svgNS, "text");
-    text.setAttribute("x", "50%");
-    text.setAttribute("y", "50%");
+    text.setAttribute("x", "50");
+    text.setAttribute("y", "52");
     text.setAttribute("dominant-baseline", "central");
     text.setAttribute("text-anchor", "middle");
-    text.setAttribute("class", "ring-score");
-    text.setAttribute("fill", "currentColor");
-    text.textContent = score;
+    text.setAttribute("class", empty ? "gauge-num gauge-num--empty" : "gauge-num");
+    text.setAttribute("font-size", "28");
+    text.textContent = empty ? "–" : score;
+    svg.appendChild(text);
 
-    svg.append(track, arc, text);
     container.appendChild(svg);
+
+    if (!empty) {
+      const arc = svg.querySelector(".gauge-arc");
+      void svg.getBoundingClientRect(); // commit the hidden arc, then release
+      arc.setAttribute("stroke-dashoffset", "0");
+
+      const word = document.createElement("span");
+      word.className = "gauge-status";
+      word.textContent = status.word;
+      word.style.color = cssVar(status.colorVar);
+      word.setAttribute("aria-hidden", "true"); // the SVG label already carries it
+      container.appendChild(word);
+    }
   }
 
   function renderSummary(summary) {
@@ -109,95 +177,167 @@
     }
     if (!summary.date) {
       $("today-date").textContent = "No data yet — waiting for the ring to sync.";
-      for (const metric of ["readiness", "sleep", "activity"]) {
-        renderRing(document.querySelector(`[data-metric="${metric}"]`), null);
-      }
+      $("today-date").classList.add("today-date--message");
+      renderGauge(document.querySelector('[data-metric="readiness"]'), null, { metric: "readiness" });
+      renderGauge(document.querySelector('[data-metric="sleep"]'), null, { metric: "sleep", ticks: 8 });
+      renderGauge(document.querySelector('[data-metric="activity"]'), null, { metric: "activity", ticks: 8 });
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
+    $("today-date").classList.remove("today-date--message");
     $("today-date").textContent =
-      summary.date === today
-        ? "Today"
-        : `Latest: ${formatDateLabel(summary.date)}`;
-    renderRing(document.querySelector('[data-metric="readiness"]'), summary.readiness, { size: 112 });
-    renderRing(document.querySelector('[data-metric="sleep"]'), summary.sleep, { size: 78, delayMs: 120 });
-    renderRing(document.querySelector('[data-metric="activity"]'), summary.activity, { size: 78, delayMs: 240 });
+      summary.date === today ? "Today" : `Latest: ${formatDateLabel(summary.date)}`;
+    renderGauge(document.querySelector('[data-metric="readiness"]'), summary.readiness, {
+      metric: "readiness",
+    });
+    renderGauge(document.querySelector('[data-metric="sleep"]'), summary.sleep, {
+      metric: "sleep",
+      delayMs: 120,
+      ticks: 8,
+    });
+    renderGauge(document.querySelector('[data-metric="activity"]'), summary.activity, {
+      metric: "activity",
+      delayMs: 240,
+      ticks: 8,
+    });
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
   }
 
   /* ---- Trend charts ---- */
 
-  function lineDataset(label, data, color) {
+  function hexToRgba(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+
+  function lineDataset(label, data, color, days) {
     return {
       label,
       data,
       borderColor: color,
       backgroundColor: color,
+      pointBackgroundColor: color,
       tension: 0.35,
       spanGaps: true,
-      pointRadius: 2,
+      // 30 days of dots is spaghetti; the line carries the story alone.
+      pointRadius: days === 30 ? 0 : 2.5,
       pointHoverRadius: 5,
-      borderWidth: 2,
+      borderWidth: days === 30 ? 1.5 : 2,
+    };
+  }
+
+  function chartOptions(days) {
+    const muted = cssVar("--text-muted");
+    const mono = cssVar("--font-mono");
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        // Series are named in the section header, not stock legend boxes.
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: cssVar("--panel-raised"),
+          borderColor: cssVar("--hairline"),
+          borderWidth: 1,
+          titleColor: muted,
+          bodyColor: cssVar("--text"),
+          titleFont: { family: mono, size: 11, weight: "normal" },
+          bodyFont: { family: mono, size: 12 },
+          padding: 10,
+          cornerRadius: 10,
+          caretSize: 5,
+          displayColors: false,
+          callbacks: {
+            // Each tooltip row speaks in its series' own color.
+            labelTextColor: (ctx) => ctx.dataset.borderColor,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: muted,
+            font: { family: mono, size: 10 },
+            maxTicksLimit: days === 30 ? 6 : 8,
+            autoSkipPadding: 16,
+            maxRotation: 0,
+          },
+          grid: { display: false },
+        },
+        y: {
+          ticks: { color: muted, font: { family: mono, size: 10 } },
+          grid: { color: cssVar("--chart-grid") },
+          border: { display: false },
+        },
+      },
     };
   }
 
   function renderCharts(history) {
+    const days = state.days;
     const labels = history.map((r) => formatDateLabel(r.date));
-    const muted = cssVar("--text-muted");
-    const grid = cssVar("--chart-grid");
-
-    const commonOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: { legend: { labels: { color: muted, boxWidth: 12, boxHeight: 12 } } },
-      scales: {
-        x: { ticks: { color: muted, maxTicksLimit: 8 }, grid: { display: false } },
-        y: { ticks: { color: muted }, grid: { color: grid } },
-      },
-    };
+    const common = chartOptions(days);
 
     const scoreConfig = {
       type: "line",
       data: {
         labels,
         datasets: [
-          lineDataset("Readiness", history.map((r) => r.readiness), cssVar("--chart-readiness")),
-          lineDataset("Sleep", history.map((r) => r.sleep), cssVar("--chart-sleep")),
-          lineDataset("Activity", history.map((r) => r.activity), cssVar("--chart-activity")),
+          lineDataset("Readiness", history.map((r) => r.readiness), cssVar("--m-readiness"), days),
+          lineDataset("Sleep", history.map((r) => r.sleep), cssVar("--m-sleep"), days),
+          lineDataset("Activity", history.map((r) => r.activity), cssVar("--m-activity"), days),
         ],
       },
       options: {
-        ...commonOptions,
+        ...common,
         scales: {
-          ...commonOptions.scales,
-          y: { ...commonOptions.scales.y, suggestedMin: 50, suggestedMax: 100 },
+          ...common.scales,
+          // Pinned range: a routine dip should read as a dip, not a cliff.
+          y: { ...common.scales.y, min: 40, max: 100, ticks: { ...common.scales.y.ticks, stepSize: 20 } },
         },
       },
     };
 
-    // Single series: the card's heading names it, so no legend box.
-    const sleepColor = cssVar("--chart-sleep");
+    const sleepColor = cssVar("--m-sleep");
     const sleepDataset = lineDataset(
-      "Time asleep (hours)",
+      "Time asleep",
       history.map((r) =>
         r.total_sleep_seconds === null
           ? null
           : Math.round((r.total_sleep_seconds / 3600) * 10) / 10
       ),
-      sleepColor
+      sleepColor,
+      days
     );
     sleepDataset.fill = true;
-    sleepDataset.backgroundColor = "rgba(99, 102, 241, 0.12)";
+    sleepDataset.backgroundColor = hexToRgba(sleepColor, 0.1);
     const sleepConfig = {
       type: "line",
       data: { labels, datasets: [sleepDataset] },
       options: {
-        ...commonOptions,
-        plugins: { legend: { display: false } },
+        ...common,
+        scales: {
+          ...common.scales,
+          y: {
+            ...common.scales.y,
+            suggestedMin: 4,
+            suggestedMax: 9,
+            ticks: { ...common.scales.y.ticks, stepSize: 1 },
+          },
+        },
       },
     };
+
+    $("scores-chart").setAttribute(
+      "aria-label",
+      `Line chart: readiness, sleep, and activity scores over the last ${days} days.`
+    );
+    $("sleep-chart").setAttribute(
+      "aria-label",
+      `Line chart: nightly time asleep in hours over the last ${days} days.`
+    );
 
     for (const [key, canvasId, config] of [
       ["scores", "scores-chart", scoreConfig],
@@ -234,8 +374,23 @@
     canvas.addEventListener("touchcancel", onEnd, { passive: false });
   }
 
+  /* ---- Trends-scoped failure: a chart fetch error must never erase
+     the scores the user is looking at. ---- */
+
+  function showTrendsError() {
+    $("trends-error").hidden = false;
+    for (const box of document.querySelectorAll("#trends .chart-box")) box.hidden = true;
+    announce("Couldn't load the trend charts.");
+  }
+
+  function hideTrendsError() {
+    $("trends-error").hidden = true;
+    for (const box of document.querySelectorAll("#trends .chart-box")) box.hidden = false;
+  }
+
   function renderHistory(data) {
     $("trends").hidden = false;
+    hideTrendsError();
     renderCharts(data);
   }
 
@@ -262,12 +417,14 @@
       ? "Your Oura account isn't connected yet."
       : "Josh hasn't connected his ring yet.";
     $("connect-button").hidden = !isOwner;
+    announce("Oura isn't connected.");
   }
 
   function showError() {
     $("error").hidden = false;
     $("today").hidden = true;
     $("trends").hidden = true;
+    announce("Couldn't load data right now.");
   }
 
   function hideError() {
@@ -303,6 +460,7 @@
     }
     if (refresh) state.historyCache = {};
     $("owner-controls").hidden = !state.isOwner;
+    $("disconnect-row").hidden = !state.isOwner;
     renderSummary(dash.summary);
     renderLastSync(dash.last_sync);
     state.historyCache[dash.history.days] = dash.history.data;
@@ -321,25 +479,53 @@
     }
   }
 
+  function setActiveRange(days) {
+    state.days = days;
+    for (const b of document.querySelectorAll(".toggle button")) {
+      const active = Number(b.dataset.days) === days;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-pressed", String(active));
+    }
+    // Deep-linkable range without polluting history.
+    history.replaceState(null, "", days === 30 ? "#30d" : "#7d");
+  }
+
   for (const button of document.querySelectorAll(".toggle button")) {
     button.addEventListener("click", async () => {
-      state.days = Number(button.dataset.days);
-      for (const b of document.querySelectorAll(".toggle button")) {
-        b.classList.toggle("active", b === button);
-      }
+      setActiveRange(Number(button.dataset.days));
+      announce(`Showing ${state.days} days`);
       try {
         await loadHistory();
       } catch {
-        showError();
+        // Scoped: Today's scores stay on screen.
+        showTrendsError();
       }
     });
   }
 
+  $("trends-retry-button").addEventListener("click", async () => {
+    try {
+      await loadHistory();
+    } catch {
+      showTrendsError();
+    }
+  });
+
   $("refresh-button").addEventListener("click", async () => {
+    const button = $("refresh-button");
+    const label = button.textContent;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "Refreshing…";
     try {
       await loadDashboard({ refresh: true });
+      announce("Data refreshed.");
     } catch {
       showError();
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = label;
     }
   });
 
@@ -349,7 +535,7 @@
   });
 
   // Two-step disconnect: first click arms the button, second click (within
-  // 4s) fires. Replaces the blocking window.confirm dialog.
+  // 8s) fires. Replaces the blocking window.confirm dialog.
   {
     const button = $("disconnect-button");
     const label = button.textContent;
@@ -358,10 +544,12 @@
       if (!button.classList.contains("armed")) {
         button.classList.add("armed");
         button.textContent = "Really disconnect?";
+        announce("Disconnect armed — press again to confirm.");
         disarmTimer = setTimeout(() => {
           button.classList.remove("armed");
           button.textContent = label;
-        }, 4000);
+          announce("Disconnect cancelled.");
+        }, 8000);
         return;
       }
       clearTimeout(disarmTimer);
@@ -369,6 +557,9 @@
       window.location.reload();
     });
   }
+
+  // Restore a deep-linked range before the first fetch.
+  if (location.hash === "#30d") setActiveRange(30);
 
   init();
 })();

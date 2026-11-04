@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0e0f11">
+  <meta name="theme-color" content="#0b0c0e">
   <meta name="description" content="Private dashboard showing Josh's Oura readiness, sleep, and activity.">
   <title>Josh's Oura</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/b612mono-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/b612-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <script src="/vendor/chart.umd.min.js" defer></script>
   <script src="/app.js" defer></script>
@@ -19,6 +21,9 @@
   </header>
 
   <main>
+    <!-- Screen-reader announcements for state changes -->
+    <p id="sr-status" class="visually-hidden" aria-live="polite"></p>
+
     <!-- Not-connected state -->
     <section id="not-connected" class="notice" hidden>
       <p id="not-connected-message"></p>
@@ -37,16 +42,16 @@
       <div class="cards">
         <article class="card card--primary skeleton" id="card-readiness">
           <h2>Readiness</h2>
-          <div class="ring-wrap" data-metric="readiness"></div>
+          <div class="gauge-wrap" data-metric="readiness"></div>
         </article>
         <div class="cards-secondary">
           <article class="card card--secondary skeleton" id="card-sleep">
             <h2>Sleep</h2>
-            <div class="ring-wrap" data-metric="sleep"></div>
+            <div class="gauge-wrap" data-metric="sleep"></div>
           </article>
           <article class="card card--secondary skeleton" id="card-activity">
             <h2>Activity</h2>
-            <div class="ring-wrap" data-metric="activity"></div>
+            <div class="gauge-wrap" data-metric="activity"></div>
           </article>
         </div>
       </div>
@@ -63,16 +68,31 @@
       <div class="trends-header">
         <h2>Trends</h2>
         <div class="toggle" role="group" aria-label="History range">
-          <button type="button" data-days="7" class="active">7 days</button>
-          <button type="button" data-days="30">30 days</button>
+          <button type="button" data-days="7" class="active" aria-pressed="true">7 days</button>
+          <button type="button" data-days="30" aria-pressed="false">30 days</button>
         </div>
       </div>
-      <div class="chart-box">
-        <div class="chart-canvas chart-canvas--scores"><canvas id="scores-chart"></canvas></div>
+      <!-- A failed trends fetch shows this instead of hiding Today -->
+      <div id="trends-error" class="trends-error" hidden>
+        <p>Couldn't load the trend charts right now.</p>
+        <button type="button" id="trends-retry-button" class="button button--ghost">Try again</button>
       </div>
       <div class="chart-box">
-        <h3>Time asleep (hours)</h3>
-        <div class="chart-canvas chart-canvas--sleep"><canvas id="sleep-chart"></canvas></div>
+        <div class="chart-head">
+          <h3 id="scores-chart-title">Scores</h3>
+          <ul class="series-key" aria-hidden="true">
+            <li><span class="key-swatch key-swatch--readiness"></span>Readiness</li>
+            <li><span class="key-swatch key-swatch--sleep"></span>Sleep</li>
+            <li><span class="key-swatch key-swatch--activity"></span>Activity</li>
+          </ul>
+        </div>
+        <div class="chart-canvas chart-canvas--scores"><canvas id="scores-chart" role="img"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-head">
+          <h3 id="sleep-chart-title">Time asleep (hours)</h3>
+        </div>
+        <div class="chart-canvas chart-canvas--sleep"><canvas id="sleep-chart" role="img"></canvas></div>
       </div>
     </section>
   </main>
@@ -80,12 +100,14 @@
   <footer class="site-footer">
     <div id="owner-controls" hidden>
       <button type="button" id="refresh-button" class="link-button">Refresh data</button>
-      <button type="button" id="disconnect-button" class="link-button danger">Disconnect Oura</button>
     </div>
     <nav class="footer-links" aria-label="Legal">
       <a href="/privacy.html">Privacy</a>·<a href="/terms.html">Terms</a>
     </nav>
     <p id="app-version" class="version"></p>
+    <div class="disconnect-row" id="disconnect-row" hidden>
+      <button type="button" id="disconnect-button" class="link-button danger">Disconnect Oura</button>
+    </div>
   </footer>
 </body>
 </html>

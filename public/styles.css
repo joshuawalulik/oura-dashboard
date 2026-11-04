@@ -1,41 +1,108 @@
-/* Josh's Oura — instrument-panel theme: etched graphite surfaces, a
-   watch-bezel ring instead of a glowing progress arc, burnished copper
-   as the single accent. Dark-only by design (this is a night-table
-   readout, not a marketing surface). */
+/* Josh's Oura — "night-flight deck": a cockpit instrument for sleep.
+   Graphite flight-deck panels, one burnished-copper accent, and B612 —
+   the typeface Airbus commissioned for cockpit displays — self-hosted
+   (strict CSP: no external origins). Dark-only by design: this is a
+   night-table readout viewed in a dim bedroom, not a marketing surface.
+
+   Color doctrine (user-confirmed): hue encodes METRIC IDENTITY
+   (readiness = copper, sleep = blue, activity = olive) everywhere —
+   dials and charts tell one story. Score status is a quiet word at an
+   amber floor; nothing on this page is allowed to look like an alarm. */
+
+/* B612 (Airbus/Intactile, OFL) — self-hosted, latin subset only */
+@font-face {
+  font-family: "B612";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/b612-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/b612-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/b612mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/b612mono-700.woff2") format("woff2");
+}
+
 :root {
   color-scheme: dark;
-  --bg: #0e0f11;
-  --text: #edeef1;
-  --text-muted: rgba(224, 227, 234, 0.62);
-  --text-faint: rgba(224, 227, 234, 0.36);
 
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
-
-  /* Etched panel surfaces (flat — no blur) */
-  --panel: #17181b;
+  /* Ground & surfaces */
+  --bg: #0b0c0e;
+  --panel: #15171a;
+  --panel-raised: #1b1e22;
   --panel-border: rgba(255, 255, 255, 0.08);
   --panel-highlight: rgba(255, 255, 255, 0.05);
-  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px rgba(0, 0, 0, 0.28);
+  --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.3);
   --hairline: rgba(255, 255, 255, 0.09);
 
-  /* Status colors (score rings): good / fair / pay-attention */
-  --good: #38caa0;
-  --fair: #eec158;
-  --low: #e97365;
+  /* Ink — faint stays ≥4.5:1 on the ground (it is still text) */
+  --text: #e8eaed;
+  --text-muted: rgba(230, 233, 238, 0.66);
+  --text-faint: rgba(230, 233, 238, 0.52);
+  --ink-ghost: rgba(230, 233, 238, 0.32); /* decoration only, never text */
 
-  /* Single UI accent: burnished copper, not brand-purple */
+  /* Voices */
+  --font-ui: "B612", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "B612 Mono", ui-monospace, "SF Mono", "Cascadia Code", monospace;
+
+  /* Type ramp — the only font sizes on this surface */
+  --fs-xs: 0.7rem;    /* placard labels, version stamp */
+  --fs-sm: 0.8rem;    /* secondary UI, footer, status words */
+  --fs-base: 0.95rem; /* prose, notices */
+  --fs-md: 1.1rem;    /* section headings */
+  --fs-lg: 1.4rem;    /* stat values */
+  --fs-title: 1.05rem;/* the site placard */
+
+  /* Single UI accent: burnished copper */
   --accent: #e0a066;
-  --accent-strong: #9c5f28;
-  --track: rgba(255, 255, 255, 0.08);
+  --accent-deep: #9c5f28;
 
-  /* Chart series — readiness reuses the accent (it's the featured metric) */
-  --chart-readiness: #e0a066;
-  --chart-sleep: #7fa3c9;
-  --chart-activity: #93a86a;
-  --chart-grid: rgba(255, 255, 255, 0.07);
+  /* Metric identity hues — one per metric, dials and charts alike */
+  --m-readiness: #e0a066;
+  --m-sleep: #8fb0d4;
+  --m-activity: #a3b47e;
+
+  /* Score status — instrument-lamp intensity, amber floor, no alarm red */
+  --status-good: #7fb8a4;
+  --status-fair: #d4b06a;
+  --status-low: #cf8771;
+
+  --track: rgba(255, 255, 255, 0.07);
+  --chart-grid: rgba(255, 255, 255, 0.06);
+
+  /* Shape & rhythm */
+  --r-panel: 16px;
+  --r-pill: 999px;
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2.5rem;
 }
 
 * { box-sizing: border-box; }
+
+::selection {
+  background: var(--accent-deep);
+  color: #fff;
+}
 
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -43,101 +110,149 @@
   border-radius: 4px;
 }
 
-html { background: var(--bg); }
+html {
+  background: var(--bg);
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
 
 body {
   position: relative;
   margin: 0 auto;
-  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem 3rem;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem 2.5rem;
   max-width: 42rem;
   min-height: 100dvh;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
   background:
-    radial-gradient(60rem 34rem at 50% -14%, rgba(255, 255, 255, 0.05), transparent 62%),
+    radial-gradient(60rem 34rem at 50% -14%, rgba(255, 255, 255, 0.04), transparent 62%),
     var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Fixed, non-scrolling grain — never applied to scrolling containers
-   (kills mobile FPS if it repaints on scroll). */
+/* Fixed, non-scrolling grain — never on scrolling containers (kills
+   mobile FPS if it repaints on scroll). Intentional texture; the
+   detector's "stripes" advisory on this is acknowledged. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 .site-header, main, .site-footer { position: relative; z-index: 1; }
 
-/* Etched panel recipe: flat fill, hairline border, single 1px top
-   highlight. No blur, no glow — the goal is a machined surface, not glass. */
+/* Screen-reader-only announcements (state changes, disconnect arming) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Machined panel recipe: flat fill, hairline border, one 1px top
+   highlight. No blur, no glow — a milled surface, not glass. */
 .card,
 .stat,
 .chart-box,
 .notice {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 16px;
+  border-radius: var(--r-panel);
   box-shadow: var(--panel-shadow), inset 0 1px 0 var(--panel-highlight);
 }
+
+/* ---- Header: a cockpit placard, not a landing-page masthead ---- */
 
 .site-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--sp-4);
   flex-wrap: wrap;
-  margin: 0.5rem 0 1.25rem;
-  padding-bottom: 1.1rem;
+  margin: var(--sp-2) 0 var(--sp-5);
+  padding-bottom: var(--sp-4);
   border-bottom: 1px solid var(--hairline);
 }
 
 .site-header h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-title);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.site-header h1::after {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin-top: 0.45rem;
+  background: var(--accent);
 }
 
 .last-sync {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-family: var(--font-mono);
   color: var(--text-faint);
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
 
 .today-date {
-  margin: 0 0 0.9rem;
-  font-size: 0.9rem;
-  font-weight: 500;
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
   color: var(--text-muted);
 }
 
+/* The waiting-for-sync message is a sentence, not a placard */
+.today-date--message {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  text-transform: none;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+/* ---- Notices (not-connected / error) ---- */
+
 .notice {
-  padding: 2rem 1.5rem;
-  margin-bottom: 1.5rem;
+  padding: var(--sp-6) var(--sp-5);
+  margin-bottom: var(--sp-5);
   text-align: center;
 }
 
-.notice p { margin: 0 0 0.5rem; color: var(--text-muted); text-wrap: balance; }
+.notice p { margin: 0 0 var(--sp-2); color: var(--text-muted); text-wrap: balance; }
 
 .button {
   display: inline-block;
-  margin-top: 0.75rem;
-  padding: 0.65rem 1.6rem;
-  border-radius: 999px;
-  background: var(--accent-strong);
+  margin-top: var(--sp-3);
+  padding: 0.7rem 1.7rem;
+  border-radius: var(--r-pill);
+  background: var(--accent-deep);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
   text-decoration: none;
-  font-weight: 600;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
 
 .button:hover { filter: brightness(1.12); }
@@ -147,25 +262,23 @@ body::before {
   filter: brightness(0.94);
 }
 
-/* Quieter sibling of .button for secondary actions (e.g. retry) */
 .button--ghost {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--panel-border);
   color: var(--text);
-  font: inherit;
-  font-weight: 600;
 }
 
-.button--ghost:hover { background: rgba(255, 255, 255, 0.1); }
+.button--ghost:hover { background: rgba(255, 255, 255, 0.1); filter: none; }
 
-/* Bento hierarchy: Readiness is the featured "master" score (the one
-   metric Oura's own app leads with), Sleep/Activity are secondary —
-   so the layout gives it real weight instead of three identical tiles. */
+/* ---- Today: the instrument cluster ----
+   Readiness is the master dial (the metric Oura's own app leads with);
+   Sleep and Activity are the two smaller dials beside it. */
+
 .cards {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-areas: "primary" "secondary";
-  gap: 0.7rem;
+  gap: var(--sp-3);
 }
 
 .card--primary { grid-area: primary; }
@@ -174,7 +287,7 @@ body::before {
   grid-area: secondary;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
+  gap: var(--sp-3);
 }
 
 @media (min-width: 560px) {
@@ -190,81 +303,81 @@ body::before {
 }
 
 .card {
-  padding: 1.1rem 0.5rem 1.2rem;
+  padding: var(--sp-4) var(--sp-2) var(--sp-4);
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
 }
 
 .card h2 {
-  margin: 0 0 0.8rem;
-  font-size: 0.72rem;
-  font-weight: 600;
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   color: var(--text-muted);
 }
 
-.ring-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+/* ---- Gauge: 270° dial with an SVG tick ring (the signature) ---- */
 
-.card--primary .ring-wrap { --ring-box: 132px; min-height: var(--ring-box); }
-.card--secondary .ring-wrap { --ring-box: 92px; min-height: var(--ring-box); }
-
-/* Watch-bezel tick ring, sitting just outside the score arc. Pure CSS,
-   independent of the SVG the score arc is drawn in. */
-.ring-wrap::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: var(--ring-box);
-  height: var(--ring-box);
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: repeating-conic-gradient(
-    from 0deg,
-    rgba(255, 255, 255, 0.4) 0deg 1.6deg,
-    transparent 1.6deg 30deg
-  );
-  -webkit-mask: radial-gradient(circle closest-side, transparent 0 82%, #000 85% 93%, transparent 96% 100%);
-  mask: radial-gradient(circle closest-side, transparent 0 82%, #000 85% 93%, transparent 96% 100%);
-  pointer-events: none;
+.gauge-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Reserve the dial's square before data arrives: no skeleton→data jump */
+  aspect-ratio: 1;
 }
 
-.ring-wrap svg { position: relative; z-index: 1; }
+.card--primary .gauge-wrap { width: 158px; }
+.card--secondary .gauge-wrap { width: 96px; }
 
-.ring-score {
+.gauge-wrap svg { display: block; width: 100%; height: auto; }
+
+.gauge-num {
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
+  fill: var(--text);
 }
 
-.card--primary .ring-score { font-size: 2rem; }
-.card--secondary .ring-score { font-size: 1.25rem; }
+.gauge-num--empty { fill: var(--text-faint); }
 
-/* Crisp, flat arc — no neon drop-shadow. The tick bezel supplies the
-   "instrument" read; the arc itself should look machined, not lit up. */
-.ring-arc {
-  transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+/* Status word sits in the dial's open bottom gap */
+.gauge-status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  /* optical centering: trailing tracking shifts the word left */
+  text-indent: 0.22em;
 }
 
-.ring-empty {
-  align-self: center;
-  color: var(--text-faint);
-  font-size: 0.8rem;
+.card--secondary .gauge-status { letter-spacing: 0.14em; text-indent: 0.14em; }
+
+.gauge-arc {
+  transition: stroke-dashoffset 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ---- Stat rows ---- */
 
 .stats {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.7rem;
-  margin-top: 0.7rem;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
 }
 
 .stat {
-  padding: 1rem 1.3rem;
+  padding: var(--sp-4) 1.3rem;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -272,41 +385,46 @@ body::before {
 
 .stat-label {
   color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
 }
 
 .stat-value {
   font-family: var(--font-mono);
-  font-size: 1.45rem;
-  font-weight: 600;
+  font-size: var(--fs-lg);
+  font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
-#trends { margin-top: 2.25rem; }
+/* ---- Trends ---- */
+
+#trends { margin-top: var(--sp-6); }
 
 .trends-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.9rem;
-  padding-bottom: 0.9rem;
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-3);
   border-bottom: 1px solid var(--hairline);
 }
 
 .trends-header h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
   margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
 
 .toggle {
   display: inline-flex;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   padding: 3px;
   border: 1px solid var(--panel-border);
 }
@@ -315,11 +433,11 @@ body::before {
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font: inherit;
-  font-size: 0.83rem;
-  font-weight: 500;
-  padding: 0.35rem 0.95rem;
-  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  padding: 0.65rem 1.05rem; /* comfortable thumb target */
+  border-radius: var(--r-pill);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -331,16 +449,60 @@ body::before {
 
 .toggle button:active { transform: scale(0.97); }
 
+/* Active range at lamp intensity: a state, not a call to action */
 .toggle button.active {
-  background: var(--accent-strong);
-  color: #fff;
-  font-weight: 600;
+  background: rgba(224, 160, 102, 0.1);
+  border-color: rgba(224, 160, 102, 0.35);
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .chart-box {
-  padding: 1.1rem 1rem 0.9rem;
-  margin-bottom: 1rem;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  margin-bottom: var(--sp-4);
 }
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin: 0 0.25rem var(--sp-3);
+}
+
+.chart-head h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+
+/* Series key: named in the header instead of stock Chart.js legend boxes */
+.series-key {
+  display: flex;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.series-key li { display: flex; align-items: center; gap: 0.4rem; }
+
+.series-key .key-swatch {
+  width: 0.9rem;
+  height: 2px;
+}
+
+.key-swatch--readiness { background: var(--m-readiness); }
+.key-swatch--sleep { background: var(--m-sleep); }
+.key-swatch--activity { background: var(--m-activity); }
 
 /* Chart.js needs a fixed-height positioned parent when responsive +
    maintainAspectRatio:false, or it resizes itself in an endless loop. */
@@ -353,53 +515,53 @@ body::before {
   .chart-canvas--sleep { height: 170px; }
 }
 
-.chart-box h3 {
-  margin: 0 0 0.75rem 0.25rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
+/* Trends-scoped error: a chart fetch failure never touches Today */
+.trends-error {
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+  text-align: center;
 }
 
-.site-footer { margin-top: 3rem; text-align: center; }
+.trends-error p { margin: 0 0 var(--sp-2); color: var(--text-muted); }
+
+/* ---- Footer: quiet close — the page ends on the build stamp,
+   with disconnect resting faint below the fold of attention ---- */
+
+.site-footer {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+}
 
 .link-button {
   border: 0;
   background: transparent;
   color: var(--text-faint);
-  font: inherit;
-  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
-  margin: 0 0.5rem;
+  padding: 0.6rem 0.75rem; /* ≥44px effective target with line box */
+  margin: 0 0.25rem;
   transition: color 0.15s ease;
 }
 
 .link-button:hover { color: var(--text-muted); }
 
-.link-button.danger { color: var(--low); }
-
-.link-button.danger:hover { color: #f3a89d; }
-
-/* First click arms the disconnect; second click within a few seconds fires. */
-.link-button.danger.armed {
-  color: #f3a89d;
-  font-weight: 600;
-  text-decoration-style: double;
-}
-
 .footer-links {
-  margin-top: 0.9rem;
-  font-size: 0.75rem;
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
   color: var(--text-faint);
 }
 
 .footer-links a {
   color: var(--text-faint);
   text-decoration: none;
-  margin: 0 0.4rem;
+  display: inline-block;
+  padding: 0.6rem 0.5rem;
+  margin: 0 0.15rem;
   transition: color 0.15s ease;
 }
 
@@ -410,50 +572,86 @@ body::before {
 }
 
 .version {
-  margin: 0.9rem 0 0;
-  font-size: 0.68rem;
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
   font-family: var(--font-mono);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   color: var(--text-faint);
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 
-/* Content pages (privacy/terms) */
-main > p, main > ul { color: var(--text-muted); line-height: 1.6; }
-main a { color: var(--accent); }
+/* Disconnect: present, honest, and last — separated from Refresh so a
+   stray thumb can't arm it. First click arms; second within 8s fires. */
+.disconnect-row { margin-top: var(--sp-4); }
 
-/* Loading skeletons */
+.link-button.danger { color: var(--text-faint); }
+
+.link-button.danger:hover { color: var(--status-low); }
+
+.link-button.danger.armed {
+  color: var(--status-low);
+  font-weight: 700;
+  text-decoration-style: double;
+}
+
+/* ---- Content pages (privacy/terms) ---- */
+
+.doc main { padding-bottom: var(--sp-5); }
+
+.doc main p, .doc main ul {
+  color: var(--text-muted);
+  line-height: 1.65;
+  font-size: var(--fs-base);
+}
+
+.doc main ul { padding-left: 1.2rem; }
+
+.doc main li { margin-bottom: var(--sp-2); }
+
+.doc main a { color: var(--accent); text-underline-offset: 3px; }
+
+.doc .back-link {
+  display: inline-block;
+  margin-top: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  color: var(--accent);
+}
+
+.doc .back-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Loading skeletons: a calm pulse, not a sweep ---- */
+
 .skeleton { position: relative; overflow: hidden; }
 .skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.06) 50%,
-    transparent 70%
-  );
-  animation: shimmer 1.4s infinite;
+  background: rgba(255, 255, 255, 0.05);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
 }
+
+/* ---- Compact phones ---- */
 
 @media (max-width: 480px) {
-  .card { padding: 0.9rem 0.3rem 1rem; border-radius: 14px; }
-  .card--primary .ring-wrap { --ring-box: 118px; }
-  .card--secondary .ring-wrap { --ring-box: 80px; }
-  .card--primary .ring-score { font-size: 1.75rem; }
-  .site-header h1 { font-size: 1.3rem; }
+  .card { border-radius: 14px; }
+  .card--primary .gauge-wrap { width: 140px; }
+  .card--secondary .gauge-wrap { width: 86px; }
+  .site-header h1 { font-size: var(--fs-base); }
 }
 
+/* ---- Reduced motion: fewer and gentler, feedback stays legible ---- */
+
 @media (prefers-reduced-motion: reduce) {
-  .skeleton::after { animation: none; }
-  .ring-arc { transition: none; }
+  .skeleton::after { animation: none; opacity: 0.6; }
+  .gauge-arc { transition: none; }
   .button, .toggle button { transition: none; }
   .button:active, .toggle button:active { transform: none; }
 }
