@@ -455,8 +455,15 @@
         ...common,
         scales: {
           ...common.scales,
-          // Pinned range: a routine dip should read as a dip, not a cliff.
-          y: { ...common.scales.y, min: 40, max: 100, ticks: { ...common.scales.y.ticks, stepSize: 20 } },
+          // Suggested floor, pinned ceiling: a routine dip reads as a dip,
+          // not a cliff, but a genuinely low score (< 40) extends the axis
+          // instead of falling off the bottom of the chart.
+          y: {
+            ...common.scales.y,
+            suggestedMin: 40,
+            max: 100,
+            ticks: { ...common.scales.y.ticks, stepSize: 20 },
+          },
         },
       },
     };
