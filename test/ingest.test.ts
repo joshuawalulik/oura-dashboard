@@ -195,6 +195,30 @@ describe("/api/ingest", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects a cross-origin request (CSRF), even from the owner", async () => {
+    // No Oura mocks registered: a rejected request must touch nothing.
+    const res = await SELF.fetch("https://dashboard.test/api/ingest?backfill=365", {
+      headers: {
+        "Cf-Access-Jwt-Assertion": ownerJwt,
+        Origin: "https://evil.example",
+      },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("accepts a same-origin Origin header", async () => {
+    await connectTokens();
+    const today = new Date().toISOString().slice(0, 10);
+    mockOuraDay(today, 76);
+    const res = await SELF.fetch("https://dashboard.test/api/ingest", {
+      headers: {
+        "Cf-Access-Jwt-Assertion": ownerJwt,
+        Origin: "https://dashboard.test",
+      },
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("rejects a malformed or oversized backfill", async () => {
     for (const bad of ["0", "-3", "1.5", "banana", "9001"]) {
       const res = await SELF.fetch(
