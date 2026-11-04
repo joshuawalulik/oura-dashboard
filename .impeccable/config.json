@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "b612",
+        "createdAt": "2026-11-04T01:21:59.324Z",
+        "reason": "redesign brief: self-hosted cockpit-display face replaces system stack; DESIGN.md regenerates at finish"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "b612 mono",
+        "createdAt": "2026-11-04T01:21:59.348Z",
+        "reason": "redesign brief: self-hosted cockpit-display face replaces system stack; DESIGN.md regenerates at finish"
+      }
+    ]
+  }
+}
