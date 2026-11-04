@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T00:00:00Z",
+  "title": "Design System: Josh's Oura",
+  "extensions": {
+    "colorMeta": {
+      "graphite-void": { "role": "neutral", "displayName": "Graphite Void", "canonical": "#0b0c0e", "tonalRamp": ["oklch(12% 0.006 260)", "oklch(16% 0.006 260)", "oklch(22% 0.006 260)", "oklch(34% 0.005 260)", "oklch(48% 0.005 260)", "oklch(64% 0.004 260)", "oklch(80% 0.003 260)", "oklch(95% 0.002 260)"] },
+      "panel-graphite": { "role": "neutral", "displayName": "Panel Graphite", "canonical": "#15171a", "tonalRamp": ["oklch(14% 0.007 250)", "oklch(20% 0.007 250)", "oklch(28% 0.007 250)", "oklch(40% 0.006 250)", "oklch(54% 0.005 250)", "oklch(68% 0.004 250)", "oklch(82% 0.003 250)", "oklch(95% 0.002 250)"] },
+      "instrument-white": { "role": "neutral", "displayName": "Instrument White", "canonical": "#e8eaed", "tonalRamp": ["oklch(15% 0.004 250)", "oklch(28% 0.004 250)", "oklch(42% 0.004 250)", "oklch(56% 0.004 250)", "oklch(70% 0.004 250)", "oklch(82% 0.004 250)", "oklch(90% 0.004 250)", "oklch(96% 0.003 250)"] },
+      "burnished-copper": { "role": "primary", "displayName": "Burnished Copper", "canonical": "#e0a066", "tonalRamp": ["oklch(18% 0.04 62)", "oklch(30% 0.07 62)", "oklch(42% 0.09 62)", "oklch(54% 0.1 62)", "oklch(66% 0.1 62)", "oklch(76% 0.09 62)", "oklch(86% 0.06 62)", "oklch(95% 0.03 62)"] },
+      "copper-deep": { "role": "primary", "displayName": "Copper Deep", "canonical": "#9c5f28", "tonalRamp": ["oklch(16% 0.05 62)", "oklch(28% 0.08 62)", "oklch(40% 0.1 62)", "oklch(52% 0.11 62)", "oklch(64% 0.1 62)", "oklch(75% 0.09 62)", "oklch(85% 0.06 62)", "oklch(95% 0.03 62)"] },
+      "metric-sleep": { "role": "secondary", "displayName": "Dim Signal Blue", "canonical": "#8fb0d4", "tonalRamp": ["oklch(16% 0.03 250)", "oklch(28% 0.05 250)", "oklch(40% 0.06 250)", "oklch(52% 0.07 250)", "oklch(64% 0.07 250)", "oklch(75% 0.06 250)", "oklch(85% 0.05 250)", "oklch(95% 0.02 250)"] },
+      "metric-activity": { "role": "secondary", "displayName": "Instrument Olive", "canonical": "#a3b47e", "tonalRamp": ["oklch(16% 0.03 122)", "oklch(28% 0.05 122)", "oklch(40% 0.07 122)", "oklch(52% 0.08 122)", "oklch(64% 0.08 122)", "oklch(75% 0.07 122)", "oklch(85% 0.05 122)", "oklch(95% 0.02 122)"] },
+      "status-good": { "role": "tertiary", "displayName": "Lamp Green", "canonical": "#7fb8a4", "tonalRamp": ["oklch(16% 0.03 170)", "oklch(28% 0.05 170)", "oklch(40% 0.06 170)", "oklch(52% 0.07 170)", "oklch(64% 0.07 170)", "oklch(75% 0.06 170)", "oklch(85% 0.05 170)", "oklch(95% 0.02 170)"] },
+      "status-fair": { "role": "tertiary", "displayName": "Lamp Amber", "canonical": "#d4b06a", "tonalRamp": ["oklch(16% 0.04 85)", "oklch(28% 0.06 85)", "oklch(40% 0.08 85)", "oklch(52% 0.09 85)", "oklch(64% 0.09 85)", "oklch(77% 0.09 85)", "oklch(86% 0.06 85)", "oklch(95% 0.03 85)"] },
+      "status-low": { "role": "tertiary", "displayName": "Lamp Terracotta", "canonical": "#cf8771", "tonalRamp": ["oklch(16% 0.04 40)", "oklch(28% 0.06 40)", "oklch(40% 0.08 40)", "oklch(52% 0.09 40)", "oklch(64% 0.09 40)", "oklch(73% 0.08 40)", "oklch(85% 0.05 40)", "oklch(95% 0.02 40)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Stat values like 7h 32m; sibling of the SVG gauge numeral (28 units in a 100-unit viewBox, 700)." },
+      "title": { "displayName": "Title", "purpose": "The site placard, uppercase with the 2.25rem x 2px copper underline bar." },
+      "headline": { "displayName": "Headline", "purpose": "Section headings (Trends), uppercase mono." },
+      "body": { "displayName": "Body", "purpose": "Prose, notices, buttons. Never uppercase, never mono." },
+      "label": { "displayName": "Label", "purpose": "Card headings, stat labels, chart titles, placards, version stamp. Status words use it at 0.22em/0.14em tracking with matching text-indent." },
+      "caption": { "displayName": "Caption", "purpose": "Secondary UI: footer links, toggle buttons, back links." }
+    },
+    "shadows": [
+      { "name": "panel-shadow", "value": "0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.3)", "purpose": "The single ambient shadow on every milled panel, paired with inset 0 1px 0 rgba(255,255,255,0.05)." }
+    ],
+    "motion": [
+      { "name": "gauge-sweep", "value": "stroke-dashoffset 0.9s cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "The dial arc sweeping in, staggered 0/120/240ms across the cluster; removed under prefers-reduced-motion." },
+      { "name": "ui-state", "value": "0.15s ease", "purpose": "Default easing for hover/press transitions on buttons, toggles, and links." },
+      { "name": "skeleton-pulse", "value": "1.6s ease-in-out infinite", "purpose": "Calm opacity pulse on loading panels, never a shimmer sweep; frozen at 0.6 opacity under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "480px" },
+      { "name": "cluster", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The copper connect action — the only filled button on the surface.",
+      "html": "<a href=\"#\" class=\"ds-btn-primary\">Connect Oura</a>",
+      "css": ".ds-btn-primary { display: inline-block; padding: 0.7rem 1.7rem; border-radius: 999px; background: #9c5f28; border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; text-decoration: none; font-family: 'B612', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: transform 0.15s ease, filter 0.15s ease; } .ds-btn-primary:hover { filter: brightness(1.12); } .ds-btn-primary:active { transform: scale(0.98); filter: brightness(0.94); } .ds-btn-primary:focus-visible { outline: 2px solid #e0a066; outline-offset: 3px; border-radius: 999px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet retry action — translucent fill, panel bezel.",
+      "html": "<button type=\"button\" class=\"ds-btn-ghost\">Try again</button>",
+      "css": ".ds-btn-ghost { padding: 0.7rem 1.7rem; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); color: #e8eaed; font-family: 'B612', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; } .ds-btn-ghost:hover { background: rgba(255, 255, 255, 0.1); } .ds-btn-ghost:active { transform: scale(0.98); } .ds-btn-ghost:focus-visible { outline: 2px solid #e0a066; outline-offset: 3px; }"
+    },
+    {
+      "name": "Range Toggle",
+      "kind": "chip",
+      "refersTo": "toggle-active",
+      "description": "History range switch; the active segment glows at lamp intensity — a state, not a call to action.",
+      "html": "<div class=\"ds-toggle\"><button type=\"button\" class=\"ds-toggle-btn ds-active\" aria-pressed=\"true\">7 days</button><button type=\"button\" class=\"ds-toggle-btn\" aria-pressed=\"false\">30 days</button></div>",
+      "css": ".ds-toggle { display: inline-flex; border-radius: 999px; padding: 3px; border: 1px solid rgba(255, 255, 255, 0.08); background: #0b0c0e; } .ds-toggle-btn { border: 1px solid transparent; background: transparent; color: rgba(230, 233, 238, 0.66); font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 0.8rem; font-weight: 400; padding: 0.65rem 1.05rem; border-radius: 999px; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; } .ds-toggle-btn:not(.ds-active):hover { color: #e8eaed; background: rgba(255, 255, 255, 0.06); } .ds-toggle-btn:active { transform: scale(0.97); } .ds-toggle-btn:focus-visible { outline: 2px solid #e0a066; outline-offset: 3px; } .ds-toggle-btn.ds-active { background: rgba(224, 160, 102, 0.1); border-color: rgba(224, 160, 102, 0.35); color: #e0a066; font-weight: 700; }"
+    },
+    {
+      "name": "Stat Row",
+      "kind": "card",
+      "refersTo": "stat-row",
+      "description": "Label/value panel row: uppercase mono label left, bold mono tabular value right.",
+      "html": "<div class=\"ds-stat\"><span class=\"ds-stat-label\">Time asleep</span><span class=\"ds-stat-value\">7h 32m</span></div>",
+      "css": ".ds-stat { display: flex; justify-content: space-between; align-items: baseline; min-width: 18rem; padding: 1rem 1.3rem; background: #15171a; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05); } .ds-stat-label { color: rgba(230, 233, 238, 0.66); font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.18em; } .ds-stat-value { color: #e8eaed; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Tick-Gauge Dial",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The signature: a 270-degree SVG instrument dial — tick ring, flat track from 135 degrees, metric-colored arc, mono numeral, status word in the open bottom gap.",
+      "html": "<article class=\"ds-dial-card\"><h2 class=\"ds-dial-label\">Readiness</h2><div class=\"ds-dial\"><svg viewBox=\"0 0 100 100\" role=\"img\" aria-label=\"Readiness 82 out of 100 — Fair\"><g stroke-linecap=\"round\"><line x1=\"16.77\" y1=\"83.23\" x2=\"20.30\" y2=\"79.70\" stroke=\"rgba(255,255,255,0.4)\" stroke-width=\"1.4\"/><line x1=\"3.90\" y1=\"59.17\" x2=\"6.35\" y2=\"58.68\" stroke=\"rgba(255,255,255,0.18)\" stroke-width=\"0.9\"/><line x1=\"6.58\" y1=\"32.01\" x2=\"11.20\" y2=\"33.93\" stroke=\"rgba(255,255,255,0.4)\" stroke-width=\"1.4\"/><line x1=\"23.89\" y1=\"10.92\" x2=\"25.28\" y2=\"13.00\" stroke=\"rgba(255,255,255,0.18)\" stroke-width=\"0.9\"/><line x1=\"50\" y1=\"3\" x2=\"50\" y2=\"8\" stroke=\"rgba(255,255,255,0.4)\" stroke-width=\"1.4\"/><line x1=\"76.11\" y1=\"10.92\" x2=\"74.72\" y2=\"13.00\" stroke=\"rgba(255,255,255,0.18)\" stroke-width=\"0.9\"/><line x1=\"93.42\" y1=\"32.01\" x2=\"88.80\" y2=\"33.93\" stroke=\"rgba(255,255,255,0.4)\" stroke-width=\"1.4\"/><line x1=\"96.10\" y1=\"59.17\" x2=\"93.65\" y2=\"58.68\" stroke=\"rgba(255,255,255,0.18)\" stroke-width=\"0.9\"/><line x1=\"83.23\" y1=\"83.23\" x2=\"79.70\" y2=\"79.70\" stroke=\"rgba(255,255,255,0.4)\" stroke-width=\"1.4\"/></g><circle cx=\"50\" cy=\"50\" r=\"37\" fill=\"none\" stroke=\"rgba(255,255,255,0.07)\" stroke-width=\"6\" stroke-linecap=\"round\" stroke-dasharray=\"174.36 232.48\" transform=\"rotate(135 50 50)\"/><circle cx=\"50\" cy=\"50\" r=\"37\" fill=\"none\" stroke=\"#e0a066\" stroke-width=\"6\" stroke-linecap=\"round\" stroke-dasharray=\"142.97 232.48\" transform=\"rotate(135 50 50)\"/><text x=\"50\" y=\"52\" dominant-baseline=\"central\" text-anchor=\"middle\" font-size=\"28\" class=\"ds-dial-num\">82</text></svg><span class=\"ds-dial-status\" aria-hidden=\"true\">Fair</span></div></article>",
+      "css": ".ds-dial-card { width: 190px; padding: 1rem 0.5rem; display: flex; flex-direction: column; align-items: center; background: #15171a; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05); } .ds-dial-label { margin: 0 0 0.5rem; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 0.7rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.18em; color: rgba(230, 233, 238, 0.66); } .ds-dial { position: relative; width: 158px; aspect-ratio: 1; } .ds-dial svg { display: block; width: 100%; height: auto; } .ds-dial-num { fill: #e8eaed; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; } .ds-dial-status { position: absolute; left: 0; right: 0; bottom: -2px; text-align: center; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.22em; text-indent: 0.22em; color: #d4b06a; }"
+    },
+    {
+      "name": "Header Placard",
+      "kind": "nav",
+      "refersTo": "title",
+      "description": "The cockpit placard header: uppercase mono title with copper underline bar, faint mono sync stamp.",
+      "html": "<header class=\"ds-placard\"><h1 class=\"ds-placard-title\">Josh's Oura</h1><p class=\"ds-placard-sync\">Updated Nov 3, 7:12 AM</p></header>",
+      "css": ".ds-placard { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; min-width: 22rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.09); background: #0b0c0e; } .ds-placard-title { margin: 0; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 1.05rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: #e8eaed; } .ds-placard-title::after { content: ''; display: block; width: 2.25rem; height: 2px; margin-top: 0.45rem; background: #e0a066; } .ds-placard-sync { margin: 0; font-size: 0.7rem; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; color: rgba(230, 233, 238, 0.52); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Danger Link (two-step disconnect)",
+      "kind": "button",
+      "refersTo": "link-button",
+      "description": "Faint underlined text button; the armed state turns lamp-terracotta with a double underline. Fires only on a second click.",
+      "html": "<button type=\"button\" class=\"ds-link-danger\">Disconnect Oura</button> <button type=\"button\" class=\"ds-link-danger ds-armed\">Really disconnect?</button>",
+      "css": ".ds-link-danger { border: 0; background: transparent; color: rgba(230, 233, 238, 0.52); font-family: 'B612', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 0.8rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0.6rem 0.75rem; transition: color 0.15s ease; } .ds-link-danger:hover { color: #cf8771; } .ds-link-danger:focus-visible { outline: 2px solid #e0a066; outline-offset: 3px; border-radius: 4px; } .ds-link-danger.ds-armed { color: #cf8771; font-weight: 700; text-decoration-style: double; }"
+    },
+    {
+      "name": "Series Key",
+      "kind": "chip",
+      "refersTo": "label",
+      "description": "Replaces stock Chart.js legend boxes: 0.9rem x 2px metric-colored swatch lines named in the chart header.",
+      "html": "<ul class=\"ds-series-key\"><li><span class=\"ds-key-swatch\" style=\"background:#e0a066\"></span>Readiness</li><li><span class=\"ds-key-swatch\" style=\"background:#8fb0d4\"></span>Sleep</li><li><span class=\"ds-key-swatch\" style=\"background:#a3b47e\"></span>Activity</li></ul>",
+      "css": ".ds-series-key { display: flex; gap: 0.75rem; margin: 0; padding: 0.5rem; list-style: none; font-family: 'B612 Mono', ui-monospace, 'SF Mono', monospace; font-size: 0.7rem; color: rgba(230, 233, 238, 0.66); background: #15171a; } .ds-series-key li { display: flex; align-items: center; gap: 0.4rem; } .ds-key-swatch { width: 0.9rem; height: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night-Flight Deck",
+    "overview": "This is a cockpit instrument for sleep, not a health-tech marketing surface. The whole page is a night-table readout viewed on a phone in a dim bedroom: a near-black graphite ground, milled panel surfaces with hairline bezels, and B612 — the typeface Airbus commissioned for cockpit displays — as the only voice. One burnished-copper lamp is the sole chrome accent; everything else speaks in the three metric identity hues or in quiet ink. The signature form is the 270° tick-gauge dial: an SVG tick ring, a flat track sweeping from 135°, a metric-colored arc, a mono numeral, and a status word resting in the dial's open bottom gap. With all content removed, the dials alone identify the world.\n\nThe system refuses both the category default (three equal stat cards above a stock chart block) and its opposite (glowing neon glassmorphism). It is dark-only by design — there is no light mode and no prefers-color-scheme branch — and nothing on the page is allowed to look like an alarm. Status at its worst is a muted terracotta word at instrument-lamp intensity, never a red number. Density is calm: a single 42rem column, generous panel spacing, one story per glance.",
+    "keyCharacteristics": [
+      "Dark-only graphite flight deck (#0b0c0e ground, #15171a panels), fixed 3% SVG grain texture",
+      "Hue encodes metric identity everywhere — copper readiness, dim-blue sleep, olive activity — in dials and charts alike",
+      "One copper chrome accent (#e0a066); status is a quiet word on an amber floor, never alarm red",
+      "B612 for prose, B612 Mono (tabular) for every number, label, and placard; both self-hosted under strict CSP",
+      "Milled surfaces: flat fills, hairline borders, one inset top highlight — no blur, no glow, no glass"
+    ],
+    "rules": [
+      { "name": "The Metric Identity Rule", "body": "Hue encodes metric identity everywhere — readiness is copper, sleep is blue, activity is olive — in dials, chart lines, swatches, and tooltip rows alike. Score status is carried by a quiet word in the dial's bottom gap; it never recolors the numeral or the arc.", "section": "colors" },
+      { "name": "The Amber Floor Rule", "body": "No alarm red anywhere. The status ramp bottoms out at muted terracotta (#cf8771) at instrument-lamp intensity. A bad night reads as a dim lamp, not a siren.", "section": "colors" },
+      { "name": "The One Lamp Rule", "body": "Burnished copper is the only chrome accent. No second accent color may appear on chrome — buttons, focus, active states, and links all speak copper or stay neutral.", "section": "colors" },
+      { "name": "The Mono Numeral Rule", "body": "Every number on the surface — gauge numerals, stat values, sync stamps, chart ticks, tooltips, the version stamp — is B612 Mono with font-variant-numeric: tabular-nums. Prose is never mono.", "section": "typography" },
+      { "name": "The Six Sizes Rule", "body": "The --fs-* ramp (0.7 / 0.8 / 0.95 / 1.05 / 1.1 / 1.4rem) is the only set of font sizes on the surface. New text picks the nearest existing step.", "section": "typography" },
+      { "name": "The Milled Surface Rule", "body": "Every panel is the same recipe: flat fill, hairline bezel, one inset top highlight, one ambient shadow. No blur, no glow, no gradient fills — a milled surface, not glass.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do give every number B612 Mono with tabular numerals; keep prose in B612 and never mono.",
+      "Do carry metric identity by hue everywhere — readiness #e0a066, sleep #8fb0d4, activity #a3b47e — in dials, chart lines, keys, and tooltips alike.",
+      "Do render status as a quiet uppercase word at lamp intensity in the dial's bottom gap (The Amber Floor Rule).",
+      "Do build every new surface on the milled-panel recipe: #15171a fill, 1px bezel, inset top highlight, the one panel shadow, 16px radius.",
+      "Do keep the single 42rem column and the --sp-* / --fs-* ramps; self-host every font under the strict CSP (no external origins; all styles in styles.css).",
+      "Do honor prefers-reduced-motion: drop the arc sweep, skeleton pulse, and press transforms while keeping feedback legible."
+    ],
+    "donts": [
+      "Don't use alarm red anywhere; the status ramp bottoms out at #cf8771 (The Amber Floor Rule).",
+      "Don't add a second chrome accent; copper is the only lamp on chrome (The One Lamp Rule).",
+      "Don't recolor a numeral or arc by status — status is a word, never a floodlight.",
+      "Don't use blur, glassmorphism, neon glow, gradient fills on panels, or any light mode; the world is dark-only milled graphite.",
+      "Don't ship stock Chart.js chrome — no legend boxes, default tooltips, or default grid; restyle per the Charts spec.",
+      "Don't add inline styles, external stylesheets, or remote fonts; the CSP forbids them."
+    ]
+  }
+}
