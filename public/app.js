@@ -327,6 +327,86 @@
     el.append(arrow, value, unit);
   }
 
+  /* ---- Baselines: the latest value against its 28-day norm ----
+     One quiet line under each dial's 7-day delta: "1.8σ below your norm"
+     with the σ-value in the metric's identity hue. Empty (height reserved)
+     when the stored history is too thin to have a baseline yet. */
+
+  function renderZ(metric, baselines) {
+    const card = document
+      .querySelector(`[data-metric="${metric}"]`)
+      .closest(".card");
+    const el = card && card.querySelector(".gauge-z");
+    if (!el) return;
+    el.textContent = "";
+    const stat = baselines && baselines.metrics && baselines.metrics[metric];
+    if (!stat || stat.z === null || stat.z === undefined) return;
+
+    const windowDays = baselines.window_days;
+    const abs = Math.abs(stat.z).toFixed(1);
+    const visual = document.createElement("span");
+    visual.setAttribute("aria-hidden", "true");
+    visual.className = "z-line";
+    const value = document.createElement("span");
+    value.className = "z-value";
+    value.style.color = cssVar(METRICS[metric].colorVar);
+    const word = document.createElement("span");
+    const sr = document.createElement("span");
+    sr.className = "visually-hidden";
+    if (Number(abs) === 0) {
+      value.textContent = "0.0σ";
+      word.textContent = "on your norm";
+      sr.textContent = `${METRICS[metric].label}: on your ${windowDays}-day norm.`;
+    } else {
+      const direction = stat.z > 0 ? "above" : "below";
+      value.textContent = `${abs}σ`;
+      word.textContent = `${direction} your norm`;
+      sr.textContent =
+        `${METRICS[metric].label}: ${abs} standard deviations ${direction} ` +
+        `your ${windowDays}-day norm.`;
+    }
+    visual.append(value, document.createTextNode(" "), word);
+    el.append(visual, sr);
+  }
+
+  function renderZScores(baselines) {
+    for (const metric of Object.keys(METRICS)) renderZ(metric, baselines);
+  }
+
+  /* ---- Patterns: computed sentences from the stored history ----
+     The section exists only when the API sent sentences — insufficient
+     data means no panel at all, never filler. Digit runs get mono spans
+     so numbers keep tabular B612 Mono inside B612 prose. */
+
+  function patternSentence(text) {
+    const li = document.createElement("li");
+    const numberRun = /\d[\d.,]*(?:h \d{2}m)?/g;
+    let last = 0;
+    let match;
+    while ((match = numberRun.exec(text))) {
+      if (match.index > last) li.append(text.slice(last, match.index));
+      const num = document.createElement("span");
+      num.className = "pattern-num";
+      num.textContent = match[0];
+      li.append(num);
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) li.append(text.slice(last));
+    return li;
+  }
+
+  function renderPatterns(patterns) {
+    const section = $("patterns");
+    const list = $("patterns-list");
+    list.textContent = "";
+    if (!Array.isArray(patterns) || patterns.length === 0) {
+      section.hidden = true;
+      return;
+    }
+    for (const text of patterns) list.appendChild(patternSentence(text));
+    section.hidden = false;
+  }
+
   function renderSummary(summary, history) {
     for (const el of document.querySelectorAll(".skeleton")) {
       el.classList.remove("skeleton");
@@ -658,6 +738,7 @@
   function showNotConnected(isOwner) {
     $("today").hidden = true;
     $("trends").hidden = true;
+    $("patterns").hidden = true;
     $("not-connected").hidden = false;
     $("not-connected-message").textContent = isOwner
       ? "Your Oura account isn't connected yet."
@@ -670,6 +751,7 @@
     $("error").hidden = false;
     $("today").hidden = true;
     $("trends").hidden = true;
+    $("patterns").hidden = true;
     announce("Couldn't load data right now.");
   }
 
@@ -709,6 +791,8 @@
     $("owner-controls").hidden = !state.isOwner;
     $("disconnect-row").hidden = !state.isOwner;
     renderSummary(dash.summary, dash.history.data);
+    renderZScores(dash.baselines);
+    renderPatterns(dash.patterns);
     renderLastSync(dash.last_sync);
     state.historyCache[dash.history.days] = dash.history.data;
     renderHistory(dash.history.data);

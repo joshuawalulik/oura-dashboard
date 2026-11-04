@@ -7,6 +7,15 @@
 import { Hono } from "hono";
 import type { Env, AppVariables } from "./types";
 import { latestRecord, type DayRecord } from "./filter";
+import { computeBaselines, computePatterns } from "./insights";
+
+/**
+ * How much synthetic history feeds the demo's baselines and patterns —
+ * matching the real dashboard's 90-day D1 window (inclusive of today).
+ * The demo Worker has no D1 (and must never touch one); the same insight
+ * math simply runs over generated days instead of stored ones.
+ */
+const DEMO_INSIGHT_DAYS = 91;
 
 export function isDemoMode(env: Env): boolean {
   return env.DEMO_MODE === "1";
@@ -121,6 +130,8 @@ demoRoutes.get("/dashboard", async (c, next) => {
   if (!isDemoMode(c.env)) return next();
   const days = c.req.query("days") === "30" ? 30 : 7;
   const history = demoHistory(days);
+  const insightHistory = demoHistory(DEMO_INSIGHT_DAYS);
+  const latest = latestRecord(insightHistory);
   return c.json({
     connected: true,
     demo: true,
@@ -129,6 +140,8 @@ demoRoutes.get("/dashboard", async (c, next) => {
     version: (c.env.GIT_SHA ?? "dev").slice(0, 7),
     summary: latestRecord(history) ?? { date: null },
     history: { days, data: history },
+    baselines: computeBaselines(insightHistory, latest),
+    patterns: computePatterns(insightHistory),
   });
 });
 
