@@ -535,6 +535,83 @@
     canvas.addEventListener("touchcancel", onEnd, { passive: false });
   }
 
+  /* ---- Readiness heatmap: one status lamp per day above the charts ----
+     The strip always shows the fullest range fetched this visit (30 days
+     stay once seen, whatever the toggle says); days without a readiness
+     score are outline-only cells. No animation — it's a static readout. */
+
+  const HEATMAP = { cell: 10, gap: 3, radius: 2.5 };
+
+  function renderHeatmap(history) {
+    // Prefer the 30-day range when any fetch this visit has returned it.
+    const data = (state.historyCache[30] ?? history).slice(-30);
+    const strip = $("heatmap-strip");
+    strip.classList.remove("skeleton");
+    strip.textContent = "";
+    if (!data.length) return;
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const { cell, gap, radius } = HEATMAP;
+    const width = data.length * cell + (data.length - 1) * gap;
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${cell}`);
+    svg.setAttribute("preserveAspectRatio", "xMinYMid meet");
+    svg.setAttribute("role", "img");
+
+    const counts = { Good: 0, Fair: 0, Low: 0, missing: 0 };
+    data.forEach((record, i) => {
+      const rect = document.createElementNS(svgNS, "rect");
+      rect.setAttribute("x", String(i * (cell + gap)));
+      rect.setAttribute("y", "0");
+      rect.setAttribute("width", String(cell));
+      rect.setAttribute("height", String(cell));
+      rect.setAttribute("rx", String(radius));
+      const title = document.createElementNS(svgNS, "title");
+      if (record.readiness == null) {
+        counts.missing++;
+        rect.setAttribute("fill", "none");
+        rect.setAttribute("stroke", "rgba(255,255,255,0.14)");
+        rect.setAttribute("stroke-width", "0.75");
+        title.textContent = `${formatDateLabel(record.date)}: no data`;
+      } else {
+        const status = scoreStatus(record.readiness);
+        counts[status.word]++;
+        rect.setAttribute("fill", cssVar(status.colorVar));
+        title.textContent = `${formatDateLabel(record.date)}: ${record.readiness} (${status.word})`;
+      }
+      rect.appendChild(title);
+      svg.appendChild(rect);
+    });
+
+    const parts = [
+      `${counts.Good} good`,
+      `${counts.Fair} fair`,
+      `${counts.Low} low`,
+    ];
+    if (counts.missing) parts.push(`${counts.missing} missing`);
+    svg.setAttribute(
+      "aria-label",
+      `${data.length}-day readiness: ${parts.join(", ")} days.`
+    );
+    strip.appendChild(svg);
+
+    $("heatmap-title").textContent = `Readiness – last ${data.length} days`;
+    const key = $("heatmap-key");
+    key.textContent = "";
+    for (const [count, label] of [
+      [counts.Good, "good"],
+      [counts.Fair, "fair"],
+      [counts.Low, "low"],
+    ]) {
+      if (!count) continue;
+      const li = document.createElement("li");
+      const swatch = document.createElement("span");
+      swatch.className = `key-swatch key-swatch--${label}`;
+      li.append(swatch, `${count} ${label}`);
+      key.appendChild(li);
+    }
+  }
+
   /* ---- Trends-scoped failure: a chart fetch error must never erase
      the scores the user is looking at. ---- */
 
@@ -552,6 +629,7 @@
   function renderHistory(data) {
     $("trends").hidden = false;
     hideTrendsError();
+    renderHeatmap(data);
     renderCharts(data);
   }
 
