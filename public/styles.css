@@ -162,6 +162,7 @@ body::before {
    highlight. No blur, no glow — a milled surface, not glass. */
 .card,
 .stat,
+.vital,
 .chart-box,
 .notice {
   background: var(--panel);
@@ -401,6 +402,51 @@ body::before {
 
 .delta-arrow--up { border-bottom: 5px solid; }
 .delta-arrow--down { border-top: 5px solid; }
+
+/* ---- Vitals row: three compact instrument readouts under the dials ---- */
+
+.vitals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.vital {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-2) 0.85rem;
+  text-align: center;
+}
+
+.vital-label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em; /* tracking adds trailing space; recenter optically */
+  white-space: nowrap;
+}
+
+.vital-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.vital-unit {
+  margin-left: 0.3rem;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
 
 /* ---- Stat rows ---- */
 
@@ -676,10 +722,12 @@ body::before {
 /* ---- Compact phones ---- */
 
 @media (max-width: 480px) {
-  .card { border-radius: 14px; }
+  .card, .vital { border-radius: 14px; }
   .card--primary .gauge-wrap { width: 140px; }
   .card--secondary .gauge-wrap { width: 86px; }
   .site-header h1 { font-size: var(--fs-base); }
+  /* "RESTING HR" must fit a ~100px tile: ease the tracking, not the size */
+  .vital-label { letter-spacing: 0.1em; text-indent: 0.1em; }
 }
 
 /* ---- Reduced motion: fewer and gentler, feedback stays legible ---- */

@@ -70,6 +70,56 @@
     return `${h}h ${String(m).padStart(2, "0")}m`;
   }
 
+  /* ---- Vitals row: three compact readouts under the dials ----
+     Signed temp uses ASCII "-" and "+" — the B612 Mono latin subset has
+     no U+2212 minus (same reason the delta arrows are CSS-drawn). */
+
+  const VITAL_DEFS = {
+    "resting-hr": {
+      label: "Resting heart rate",
+      format: (v) => [String(Math.round(v)), "bpm"],
+      sr: (v) => `${Math.round(v)} beats per minute`,
+    },
+    hrv: {
+      label: "Heart rate variability",
+      format: (v) => [String(Math.round(v)), "ms"],
+      sr: (v) => `${Math.round(v)} milliseconds`,
+    },
+    "temp-dev": {
+      label: "Body temperature deviation",
+      format: (v) => [`${v > 0 ? "+" : v < 0 ? "-" : ""}${Math.abs(v).toFixed(1)}°`, null],
+      sr: (v) =>
+        `${v > 0 ? "plus " : v < 0 ? "minus " : ""}${Math.abs(v).toFixed(1)} degrees Celsius`,
+    },
+  };
+
+  function renderVital(key, value) {
+    const def = VITAL_DEFS[key];
+    const el = document.querySelector(`[data-vital="${key}"]`);
+    const srEl = document.querySelector(`[data-vital-sr="${key}"]`);
+    el.textContent = "";
+    if (value === null || value === undefined) {
+      el.textContent = "–";
+      srEl.textContent = `${def.label}: no data yet`;
+      return;
+    }
+    const [number, unit] = def.format(value);
+    el.append(document.createTextNode(number));
+    if (unit) {
+      const unitEl = document.createElement("span");
+      unitEl.className = "vital-unit";
+      unitEl.textContent = unit;
+      el.append(unitEl);
+    }
+    srEl.textContent = `${def.label}: ${def.sr(value)}`;
+  }
+
+  function renderVitals(summary) {
+    renderVital("resting-hr", summary.resting_heart_rate);
+    renderVital("hrv", summary.average_hrv);
+    renderVital("temp-dev", summary.temperature_deviation);
+  }
+
   function formatDateLabel(isoDate) {
     const d = new Date(`${isoDate}T00:00:00`);
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -287,6 +337,7 @@
       renderGauge(document.querySelector('[data-metric="readiness"]'), null, { metric: "readiness" });
       renderGauge(document.querySelector('[data-metric="sleep"]'), null, { metric: "sleep", ticks: 8 });
       renderGauge(document.querySelector('[data-metric="activity"]'), null, { metric: "activity", ticks: 8 });
+      renderVitals({});
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -309,6 +360,7 @@
       ticks: 8,
       delta: sevenDayDelta(history, "activity", summary),
     });
+    renderVitals(summary);
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
   }
