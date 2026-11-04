@@ -24,11 +24,16 @@ jobs:
           fi
       - name: Probe demo
         run: |
-          body=$(curl -s -m 20 https://oura-demo.joshuawalulik.com/api/status)
-          echo "GET /api/status -> $body"
           # The demo is the public face of the project: it must be up and
           # must still be the synthetic-data Worker, never anything else.
-          echo "$body" | grep -q '"demo":true' || {
-            echo "Demo is down or not serving synthetic data" >&2
-            exit 1
-          }
+          # Retried so a transient DNS/edge hiccup doesn't page as an outage.
+          for attempt in 1 2 3; do
+            body=$(curl -s -m 20 https://oura-demo.joshuawalulik.com/api/status) || body=""
+            echo "attempt $attempt: GET /api/status -> $body"
+            if echo "$body" | grep -q '"demo":true'; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Demo is down or not serving synthetic data" >&2
+          exit 1
