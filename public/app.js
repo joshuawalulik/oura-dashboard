@@ -623,15 +623,14 @@
   }
 
   /* ---- Readiness heatmap: one status lamp per day above the charts ----
-     The strip always shows the fullest range fetched this visit (30 days
-     stay once seen, whatever the toggle says); days without a readiness
-     score are outline-only cells. No animation — it's a static readout. */
+     The strip follows the range toggle, same as the charts; days without
+     a readiness score are outline-only cells. No animation — it's a
+     static readout. */
 
   const HEATMAP = { cell: 10, gap: 3, radius: 2.5 };
 
   function renderHeatmap(history) {
-    // Prefer the 30-day range when any fetch this visit has returned it.
-    const data = (state.historyCache[30] ?? history).slice(-30);
+    const data = history;
     const strip = $("heatmap-strip");
     strip.classList.remove("skeleton");
     strip.textContent = "";
