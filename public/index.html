@@ -24,6 +24,13 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
+  <!-- Shown only on the public demo deployment (app.js unhides it when the
+       API says demo: true); the real site never serves demo data. -->
+  <p id="demo-banner" class="demo-banner" hidden>
+    Demo — every number here is synthetic ·
+    <a href="https://github.com/joshuawalulik/oura-dashboard">source</a>
+  </p>
+
   <header class="site-header">
     <h1>Josh's Oura</h1>
     <p id="last-sync" class="last-sync" hidden></p>
