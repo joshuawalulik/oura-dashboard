@@ -29,12 +29,12 @@ id = "fb9c60d3753b4c0caf75f0965aa1b70c"
 
 # Longitudinal history (readiness/sleep/vitals per day) for baselines and
 # patterns. KV keeps its roles (tokens + 3h response cache); D1 is history
-# only. One-time setup: `wrangler d1 create oura-days`, paste the id below,
-# then `wrangler d1 migrations apply oura-days --remote`.
+# only. Schema changes: add a migration file, then
+# `wrangler d1 migrations apply oura-days --remote`.
 [[d1_databases]]
 binding = "OURA_DB"
 database_name = "oura-days"
-database_id = "00000000-0000-0000-0000-000000000000" # TODO: real id from `wrangler d1 create oura-days`
+database_id = "86e45984-98b4-4e30-80bf-cd7845af177b"
 migrations_dir = "migrations"
 
 # Nightly ingest: upserts the last ~7 days into D1 (idempotent — late ring
