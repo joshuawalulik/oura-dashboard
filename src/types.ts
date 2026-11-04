@@ -1,5 +1,10 @@
 export interface Env {
   OURA_KV: KVNamespace;
+  /**
+   * Longitudinal day history (see migrations/). Bound on the real deployment
+   * only — the demo Worker has no D1, so demo handlers must never touch it.
+   */
+  OURA_DB: D1Database;
   ASSETS: Fetcher;
   OURA_CLIENT_ID: string;
   OURA_CLIENT_SECRET: string;

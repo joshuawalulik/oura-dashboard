@@ -10,6 +10,8 @@ import { verifyAccessJwt, AccessJwtError } from "./access";
 import { authRoutes } from "./routes/auth";
 import { apiRoutes } from "./routes/api";
 import { demoRoutes, isDemoMode } from "./demo";
+import { ingestDays, INGEST_WINDOW_DAYS } from "./ingest";
+import { NotConnectedError } from "./oura";
 import type { Env, AppVariables } from "./types";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -170,4 +172,45 @@ app.all("*", async (c) => {
   return response;
 });
 
-export default app;
+/**
+ * Nightly ingest ([triggers] in wrangler.toml): upsert the last ~7 days of
+ * filtered Oura data into D1. Idempotent, so a day the ring synced late is
+ * simply rewritten with fuller data on the next run. Guarded so a Worker
+ * without D1 (the demo, or a deploy before `wrangler d1 create`) no-ops
+ * instead of throwing every night.
+ */
+async function scheduled(
+  controller: ScheduledController,
+  env: Env,
+  _ctx: ExecutionContext
+): Promise<void> {
+  if (isDemoMode(env) || !env.OURA_DB) {
+    console.log(JSON.stringify({ event: "ingest", outcome: "skipped" }));
+    return;
+  }
+  try {
+    const { start, end, written } = await ingestDays(env, INGEST_WINDOW_DAYS);
+    console.log(
+      JSON.stringify({ event: "ingest", outcome: "ok", start, end, written })
+    );
+  } catch (err) {
+    if (err instanceof NotConnectedError) {
+      console.log(JSON.stringify({ event: "ingest", outcome: "not_connected" }));
+      return;
+    }
+    // Counts and messages only — never health data in logs.
+    console.error(
+      JSON.stringify({
+        event: "ingest",
+        outcome: "error",
+        message: err instanceof Error ? err.message : "unknown",
+      })
+    );
+    throw err; // surface the failure in the cron's execution status
+  }
+}
+
+export default {
+  fetch: app.fetch,
+  scheduled,
+};

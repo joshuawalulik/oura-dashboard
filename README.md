@@ -7,7 +7,7 @@ with exactly one other person. Serverless end to end, zero secrets in the
 client, zero third-party origins, and a CI pipeline that refuses to ship a
 broken or open deployment.
 
-**Stack:** TypeScript · [Hono](https://hono.dev) · Cloudflare Workers + KV ·
+**Stack:** TypeScript · [Hono](https://hono.dev) · Cloudflare Workers + KV + D1 ·
 Cloudflare Access · Chart.js (self-hosted) · Vitest (`workerd` pool) · GitHub Actions
 
 ## Live demo
@@ -21,14 +21,21 @@ synthesized ([src/demo.ts](src/demo.ts)) as a pure function of the calendar
 date — seeded PRNG, weekly sleep rhythm, the odd rough night that drags
 readiness down and resting heart rate up — so it's stable within a day and
 drifts day to day without rewriting history. There's no Access in front and
-nothing private behind: the demo Worker has **no KV namespace, no secrets,
-and no OAuth routes** (they 404). The real deployment below stays locked to
+nothing private behind: the demo Worker has **no KV namespace, no D1
+database, no secrets, and no OAuth routes** (they 404) — the demo's
+baselines and patterns run the same insight math over generated days. The real deployment below stays locked to
 two email addresses.
 
 ## What it does
 
 - Today's readiness, sleep, and activity scores as rings, plus time asleep
   and 7/30-day trend charts, in a dark instrument-panel UI
+- Owns its history: a nightly cron ingests each day into D1, and the
+  dashboard reads today against a 28-day rolling baseline ("1.8σ below your
+  norm") — something the Oura app itself doesn't show
+- A Patterns panel with computed, honest sentences (sleep length vs next-day
+  readiness, day-of-week effects) that hides entirely when the data hasn't
+  earned a claim — no LLM, no fabrication
 - Pulls from the Oura API v2 over OAuth2, with automatic access-token refresh
   and refresh-token rotation persisted in KV
 - Exactly two email addresses can see it; only the owner can connect or
@@ -45,14 +52,18 @@ Browser ──HTTPS──▶ Cloudflare Access (email OTP, 2-address allowlist)
                   ├── serves the static dashboard
                   ├── /api/*  → filtered, KV-cached Oura data
                   ├── /auth/* → owner-only OAuth flow with Oura
-                  └── Workers KV: tokens + 3h response cache
-                          │
+                  ├── Workers KV: tokens + 3h response cache
+                  └── D1: one row per day (nightly cron upsert)
+                          │                └─ baselines + patterns
                           ▼
                   Oura API v2 (api.ouraring.com)
 ```
 
-One Worker serves everything. There is no server to patch, no database to
-administer, and the whole thing fits in Cloudflare's free tier.
+One Worker serves everything. There is no server to patch, and the whole
+thing fits in Cloudflare's free tier. The D1 history is the part Oura can't
+take away: filtered day rows accumulate under the ingest cron (idempotent
+upserts, so late ring syncs self-heal), and the insights are computed from
+that store, never fetched.
 
 ## Security model
 
@@ -103,10 +114,12 @@ layer and the owner/viewer authorization split on top of it.
 
 ## Testing & CI/CD
 
-57 tests run in the real Workers runtime via
+85 tests run in the real Workers runtime via
 `@cloudflare/vitest-pool-workers` — JWT verification against generated RSA
-keys, token refresh/rotation, field-allowlist leak checks, and full
-request-level tests with Oura and the Access JWKS mocked (no live calls).
+keys, token refresh/rotation, field-allowlist leak checks, D1 ingest
+idempotency against the checked-in migrations, baseline/correlation math
+against fixtures, and full request-level tests with Oura and the Access
+JWKS mocked (no live calls).
 
 Every push runs typecheck + tests; merges to `main` deploy via
 `wrangler-action` and then **smoke-test the live site, asserting
@@ -137,6 +150,10 @@ opposite smoke test: it must answer *without* auth and still declare
 | `src/oura.ts` | Oura OAuth token lifecycle + paginated data fetching |
 | `src/filter.ts` | Field allowlists — the only path data takes to the browser |
 | `src/routes/` | `/api/*` data routes and owner-only `/auth/*` flow |
+| `src/ingest.ts` | Nightly/backfill Oura → D1 ingest (idempotent upserts) |
+| `src/store.ts` | D1 day store (upsert + range reads) |
+| `src/insights.ts` | Baseline (mean/σ/z) and pattern math — pure functions |
+| `migrations/` | D1 schema migrations (applied in tests too) |
 | `public/` | Static dashboard (vanilla JS, no framework) |
 | `test/` | Vitest suite (runs in `workerd`) |
 
@@ -151,11 +168,15 @@ npm test
 
 Deploying your own instance needs: an Oura OAuth app
 (developer.ouraring.com), a Cloudflare zone + Access application (one-time
-PIN, email allowlist), a KV namespace in [wrangler.toml](wrangler.toml),
-and five secrets via `wrangler secret put` — `OURA_CLIENT_ID`,
-`OURA_CLIENT_SECRET`, `CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN`,
-`OWNER_EMAIL`. Then `wrangler deploy` (or push to `main` with
-`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets set).
+PIN, email allowlist), a KV namespace and a D1 database
+(`wrangler d1 create oura-days`, id into [wrangler.toml](wrangler.toml),
+then `wrangler d1 migrations apply oura-days --remote`), and five secrets
+via `wrangler secret put` — `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`,
+`CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN`, `OWNER_EMAIL`. Then
+`wrangler deploy` (or push to `main` with `CLOUDFLARE_API_TOKEN` /
+`CLOUDFLARE_ACCOUNT_ID` repo secrets set). After the first deploy, hit
+`/api/ingest?backfill=365` once as the owner to seed the history; the
+nightly cron keeps it current from there.
 
 ## License
 

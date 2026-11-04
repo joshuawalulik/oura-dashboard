@@ -6,6 +6,8 @@ import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:test";
 import app from "../src/index";
 import { demoHistory } from "../src/demo";
+import { computeBaselines, computePatterns } from "../src/insights";
+import { latestRecord } from "../src/filter";
 import type { Env } from "../src/types";
 
 const testEnv = env as unknown as Env;
@@ -29,6 +31,23 @@ describe("demo API", () => {
     expect(body.history.days).toBe(7);
     expect(body.history.data).toHaveLength(7);
     expect(body.summary.date).toBe(body.history.data[6].date);
+  });
+
+  it("serves the same baselines + patterns payload shape as the real API", async () => {
+    const res = await demoFetch("/api/dashboard");
+    const body = (await res.json()) as Record<string, any>;
+
+    // Synthetic history is dense, so baselines always qualify.
+    expect(body.baselines.window_days).toBe(28);
+    for (const metric of ["readiness", "sleep", "activity"]) {
+      const stat = body.baselines.metrics[metric];
+      expect(stat.n).toBeGreaterThanOrEqual(14);
+      expect(typeof stat.mean).toBe("number");
+      expect(typeof stat.sd).toBe("number");
+      expect(typeof stat.z).toBe("number");
+    }
+    expect(Array.isArray(body.patterns)).toBe(true);
+    for (const sentence of body.patterns) expect(typeof sentence).toBe("string");
   });
 
   it("serves 30-day history with plausible, in-range values", async () => {
@@ -71,14 +90,25 @@ describe("demo API", () => {
     expect(second).toBe(first);
   });
 
-  it("never touches KV or upstream Oura", async () => {
-    // The demo deployment has no KV binding at all; prove the handlers
-    // survive without one (an accidental KV/Oura touch would throw here).
-    const kvLess = { ...demoEnv, OURA_KV: undefined } as unknown as Env;
+  it("never touches KV, D1, or upstream Oura", async () => {
+    // The demo deployment has no KV and no D1 binding at all; prove the
+    // handlers survive without either (an accidental touch would throw here).
+    const bindingLess = {
+      ...demoEnv,
+      OURA_KV: undefined,
+      OURA_DB: undefined,
+    } as unknown as Env;
     for (const path of ["/api/dashboard", "/api/history", "/api/summary", "/api/status"]) {
-      const res = await app.fetch(new Request(`https://demo.test${path}`), kvLess);
+      const res = await app.fetch(new Request(`https://demo.test${path}`), bindingLess);
       expect(res.status).toBe(200);
     }
+    // The ingest route must refuse the anonymous demo viewer before it could
+    // ever reach a binding.
+    const ingest = await app.fetch(
+      new Request("https://demo.test/api/ingest?backfill=365"),
+      bindingLess
+    );
+    expect(ingest.status).toBe(403);
   });
 
   it("has no OAuth routes: /auth/* is 404, not 403", async () => {
@@ -117,5 +147,20 @@ describe("demo data generator", () => {
     const month = demoHistory(30, new Date("2026-11-04T12:00:00Z"));
     const readiness = new Set(month.map((d) => d.readiness));
     expect(readiness.size).toBeGreaterThan(5);
+  });
+
+  it("feeds the same insight math the real dashboard uses, and it has a story", async () => {
+    // Fixed date for determinism. The generator models sleep driving
+    // readiness and longer weekends, so the public demo always has real
+    // baselines and at least one honest pattern sentence to show.
+    const history = demoHistory(91, new Date("2026-11-04T12:00:00Z"));
+    const baselines = computeBaselines(history, latestRecord(history));
+    expect(baselines).not.toBeNull();
+    expect(baselines!.metrics.readiness!.n).toBe(28);
+    expect(baselines!.metrics.readiness!.sd).toBeGreaterThan(0);
+
+    const patterns = computePatterns(history);
+    expect(patterns.length).toBeGreaterThanOrEqual(1);
+    expect(patterns.length).toBeLessThanOrEqual(3);
   });
 });

@@ -17,6 +17,9 @@ import {
   type ScoreDoc,
   type SleepPeriodDoc,
 } from "../filter";
+import { ingestDays, INGEST_WINDOW_DAYS, MAX_BACKFILL_DAYS } from "../ingest";
+import { readDays } from "../store";
+import { computeBaselines, computePatterns, type Baselines } from "../insights";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
 // Bump whenever the filtered shapes change: cached entries written by an
@@ -94,6 +97,36 @@ async function loadHistory(
   return hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
 }
 
+/** How much D1 history feeds the Patterns panel. */
+const PATTERN_WINDOW_DAYS = 90;
+
+/**
+ * Baselines + patterns from the D1 day history. The latest day itself comes
+ * from the live (KV-cached) load, so its z-score is fresh even before
+ * tonight's ingest lands. Insights are strictly additive: any D1 failure —
+ * database missing, not yet created, not yet backfilled — degrades to
+ * "no insights" and never breaks the dashboard.
+ */
+async function loadInsights(
+  env: Env,
+  latest: DayRecord | null
+): Promise<{ baselines: Baselines | null; patterns: string[] }> {
+  const none = { baselines: null, patterns: [] as string[] };
+  if (!latest || !env.OURA_DB) return none;
+  try {
+    const start = new Date(`${latest.date}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - PATTERN_WINDOW_DAYS);
+    const rows = await readDays(env.OURA_DB, isoDate(start), latest.date);
+    return {
+      baselines: computeBaselines(rows, latest),
+      patterns: computePatterns(rows),
+    };
+  } catch (err) {
+    console.error("insights_error", err instanceof Error ? err.message : "unknown");
+    return none;
+  }
+}
+
 export const apiRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 // `?refresh=1` bypasses the cache — owner only.
@@ -133,7 +166,10 @@ apiRoutes.get("/dashboard", async (c) => {
   try {
     const history = await loadHistory(c.env, days, bypass);
     const latest = latestRecord(history);
-    const lastSync = await c.env.OURA_KV.get(LAST_SYNC_KV_KEY);
+    const [lastSync, insights] = await Promise.all([
+      c.env.OURA_KV.get(LAST_SYNC_KV_KEY),
+      loadInsights(c.env, latest),
+    ]);
     return c.json({
       connected: true,
       viewer_is_owner: isOwner,
@@ -141,6 +177,8 @@ apiRoutes.get("/dashboard", async (c) => {
       version,
       summary: latest ?? { date: null },
       history: { days, data: history },
+      baselines: insights.baselines,
+      patterns: insights.patterns,
     });
   } catch (err) {
     if (err instanceof NotConnectedError) return notConnected();
@@ -178,6 +216,30 @@ apiRoutes.get("/history", async (c) => {
   const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
   try {
     return c.json({ days, data: await loadHistory(c.env, days, bypass) });
+  } catch (err) {
+    return handleUpstreamError(err);
+  }
+});
+
+// Owner-only, on-demand ingest. `/api/ingest` writes the nightly window;
+// `/api/ingest?backfill=365` is the one-time history seed after the D1
+// database is created. Rows are upserted, so re-running is always safe.
+apiRoutes.get("/ingest", async (c) => {
+  if (!c.get("isOwner")) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const raw = c.req.query("backfill");
+  let days = INGEST_WINDOW_DAYS;
+  if (raw !== undefined) {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_BACKFILL_DAYS) {
+      return c.json({ error: "bad_backfill" }, 400);
+    }
+    days = parsed;
+  }
+  try {
+    const { start, end, written } = await ingestDays(c.env, days);
+    return c.json({ ok: true, start, end, written });
   } catch (err) {
     return handleUpstreamError(err);
   }

@@ -415,6 +415,27 @@ body::before {
 
 .gauge-delta .delta-value { font-weight: 700; }
 
+/* The baseline line under the delta: today's value against its 28-day norm
+   ("1.8σ below your norm"). Same quiet mono voice as the delta, σ-value in
+   the metric's identity hue; empty but height-reserved when the stored
+   history is too thin for a baseline yet. */
+.gauge-z {
+  min-height: 0.9rem;
+  margin: 0.2rem 0 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inline, not flex: on a narrow dial the line wraps as centered prose
+   instead of shearing the σ-value away from its words. */
+.gauge-z .z-line { display: inline; }
+
+.gauge-z .z-value { font-weight: 700; }
+
 /* Direction arrows are drawn, not glyphs — the B612 Mono latin subset has
    no triangles, and a fallback-font glyph would break the mono line. */
 .delta-arrow {
@@ -608,6 +629,51 @@ body::before {
 .key-swatch--readiness { background: var(--m-readiness); }
 .key-swatch--sleep { background: var(--m-sleep); }
 .key-swatch--activity { background: var(--m-activity); }
+
+/* ---- Patterns: computed sentences from the stored history ----
+   Prose on a milled panel — B612 sentences with mono digit runs (The Mono
+   Numeral Rule), each led by a small copper tick in the series-key voice.
+   The section only exists when the data earned something to say. */
+
+#patterns { margin-top: var(--sp-6); }
+
+.patterns-box { padding: var(--sp-4) var(--sp-4) var(--sp-4); }
+
+.patterns-list {
+  margin: 0;
+  padding: 0 0.25rem;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-3);
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* The copper tick is positioned, not flexed: a flex li would turn every
+   text node and mono-digit span into its own flex item and shred the
+   sentence. Sentences must stay ordinary inline prose. */
+.patterns-list li {
+  position: relative;
+  padding-left: 1.15rem;
+}
+
+.patterns-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.55rem;
+  height: 2px;
+  background: var(--accent);
+}
+
+.pattern-num {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
 
 /* ---- Readiness heatmap: a row of day lamps above the charts ----
    One rounded square per day, filled in the status-lamp color; days

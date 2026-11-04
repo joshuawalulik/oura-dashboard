@@ -60,17 +60,20 @@
           <h2>Readiness</h2>
           <div class="gauge-wrap" data-metric="readiness"></div>
           <p class="gauge-delta" aria-hidden="true"></p>
+          <p class="gauge-z"></p>
         </article>
         <div class="cards-secondary">
           <article class="card card--secondary skeleton" id="card-sleep">
             <h2>Sleep</h2>
             <div class="gauge-wrap" data-metric="sleep"></div>
             <p class="gauge-delta" aria-hidden="true"></p>
+            <p class="gauge-z"></p>
           </article>
           <article class="card card--secondary skeleton" id="card-activity">
             <h2>Activity</h2>
             <div class="gauge-wrap" data-metric="activity"></div>
             <p class="gauge-delta" aria-hidden="true"></p>
+            <p class="gauge-z"></p>
           </article>
         </div>
       </div>
@@ -136,6 +139,17 @@
           <h3 id="sleep-chart-title">Time asleep (hours)</h3>
         </div>
         <div class="chart-canvas chart-canvas--sleep"><canvas id="sleep-chart" role="img"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Patterns: sentences computed from the stored day history. The whole
+         section stays hidden until the data has earned something to say. -->
+    <section id="patterns" aria-label="Patterns" hidden>
+      <div class="trends-header">
+        <h2>Patterns</h2>
+      </div>
+      <div class="chart-box patterns-box">
+        <ul class="patterns-list" id="patterns-list"></ul>
       </div>
     </section>
   </main>
