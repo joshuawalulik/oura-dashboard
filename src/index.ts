@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { verifyAccessJwt, AccessJwtError } from "./access";
 import { authRoutes } from "./routes/auth";
 import { apiRoutes } from "./routes/api";
+import { demoRoutes, isDemoMode } from "./demo";
 import type { Env, AppVariables } from "./types";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -27,7 +28,13 @@ app.use("*", async (c, next) => {
         path: new URL(c.req.url).pathname,
         status: c.res?.status ?? 500,
         ms: Date.now() - start,
-        viewer: c.get("email") ? (c.get("isOwner") ? "owner" : "partner") : "unauthenticated",
+        viewer: isDemoMode(c.env)
+          ? "demo"
+          : c.get("email")
+            ? c.get("isOwner")
+              ? "owner"
+              : "partner"
+            : "unauthenticated",
       })
     );
   }
@@ -67,6 +74,15 @@ app.use("*", async (c, next) => {
 
 // Access JWT validation on every request (defense in depth, spec §4 layer 2).
 app.use("*", async (c, next) => {
+  // Public demo deployment: no Access in front — and nothing private behind
+  // (synthetic data only, no KV/secrets bound). Viewers are anonymous and
+  // never owners, so owner controls stay hidden and /auth/* stays forbidden.
+  if (isDemoMode(c.env)) {
+    c.set("email", "demo");
+    c.set("isOwner", false);
+    return next();
+  }
+
   // Local development only: `wrangler dev` has no Access in front of it.
   // CI always deploys with GIT_SHA set, so the bypass is structurally inert
   // in production even if the var were ever set there by mistake.
@@ -96,7 +112,16 @@ app.use("*", async (c, next) => {
   return next();
 });
 
+// The demo has no Oura connection to manage: its OAuth routes don't exist
+// at all (404 before the owner check, so there is nothing to probe).
+app.use("/auth/*", async (c, next) => {
+  if (isDemoMode(c.env)) return c.json({ error: "not_found" }, 404);
+  return next();
+});
+
 app.route("/auth", authRoutes);
+// Demo routes sit in front and defer to the real API outside demo mode.
+app.route("/api", demoRoutes);
 app.route("/api", apiRoutes);
 
 // Everything else is the static dashboard, served through the Worker so the

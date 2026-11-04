@@ -29,3 +29,24 @@ id = "fb9c60d3753b4c0caf75f0965aa1b70c"
 
 # Secrets (set via `wrangler secret put <NAME>`, never committed):
 #   OURA_CLIENT_ID, OURA_CLIENT_SECRET, CF_ACCESS_AUD, CF_ACCESS_TEAM_DOMAIN, OWNER_EMAIL
+
+# ---- Public demo: `npx wrangler deploy --env demo` ----
+# Same code, synthetic data (src/demo.ts). Deliberately NO Access in front
+# and nothing private behind: no KV namespace, no secrets, no OAuth routes.
+# Wrangler environments don't inherit routes/vars/kv, which is exactly the
+# point — the demo Worker can't reach production's KV even by mistake.
+[env.demo]
+routes = [
+  { pattern = "oura-demo.joshuawalulik.com", custom_domain = true }
+]
+
+[env.demo.vars]
+DEMO_MODE = "1"
+
+[env.demo.observability]
+enabled = true
+
+[env.demo.assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
