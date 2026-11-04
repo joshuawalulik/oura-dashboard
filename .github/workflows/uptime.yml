@@ -22,3 +22,13 @@ jobs:
             echo "Unexpected status $code" >&2
             exit 1
           fi
+      - name: Probe demo
+        run: |
+          body=$(curl -s -m 20 https://oura-demo.joshuawalulik.com/api/status)
+          echo "GET /api/status -> $body"
+          # The demo is the public face of the project: it must be up and
+          # must still be the synthetic-data Worker, never anything else.
+          echo "$body" | grep -q '"demo":true' || {
+            echo "Demo is down or not serving synthetic data" >&2
+            exit 1
+          }

@@ -14,6 +14,12 @@ export interface Env {
    * Ignored whenever GIT_SHA is set, i.e. in every CI-deployed build.
    */
   ACCESS_DEV_BYPASS?: string;
+  /**
+   * "1" only on the public demo deployment ([env.demo] in wrangler.toml):
+   * serves synthetic data with no Access check and no KV/secrets bound.
+   * Never set on the real deployment.
+   */
+  DEMO_MODE?: string;
   /** Git commit SHA injected by CI (`--var GIT_SHA:...`); absent in dev. */
   GIT_SHA?: string;
 }
