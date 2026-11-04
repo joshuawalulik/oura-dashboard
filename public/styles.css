@@ -367,6 +367,41 @@ body::before {
   transition: stroke-dashoffset 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The needle tick fades in as the arc sweep arrives at it */
+.gauge-needle {
+  transition: opacity 0.35s ease-out;
+}
+
+/* Delta vs the 7-day average, under each dial. Always in the flow (empty
+   when history is too sparse) so the cards never jump. */
+.gauge-delta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 1rem;
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-delta .delta-value { font-weight: 700; }
+
+/* Direction arrows are drawn, not glyphs — the B612 Mono latin subset has
+   no triangles, and a fallback-font glyph would break the mono line. */
+.delta-arrow {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.delta-arrow--up { border-bottom: 5px solid; }
+.delta-arrow--down { border-top: 5px solid; }
+
 /* ---- Stat rows ---- */
 
 .stats {
@@ -652,6 +687,7 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after { animation: none; opacity: 0.6; }
   .gauge-arc { transition: none; }
+  .gauge-needle { transition: none; }
   .button, .toggle button { transition: none; }
   .button:active, .toggle button:active { transform: none; }
 }

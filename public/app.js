@@ -25,6 +25,27 @@
     return { word: "Low", colorVar: "--status-low" };
   }
 
+  const prefersReducedMotion = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Delta vs the trailing 7-day average: today's score against the mean of
+     the (up to) seven days before it. Omitted when fewer than 3 of those
+     days have data — a two-point average is noise, not a baseline. */
+  function sevenDayDelta(history, metric, latest) {
+    if (!history || !latest || latest[metric] == null) return null;
+    const prior = history.filter((r) => r.date < latest.date).slice(-7);
+    const values = prior.map((r) => r[metric]).filter((v) => v != null);
+    if (values.length < 3) return null;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    return Math.round(latest[metric] - mean);
+  }
+
+  function deltaPhrase(delta) {
+    if (delta == null) return "";
+    if (delta === 0) return ", on 7-day average";
+    return `, ${Math.abs(delta)} ${delta > 0 ? "above" : "below"} 7-day average`;
+  }
+
   // Polite announcements for screen readers (state swaps are otherwise silent).
   function announce(message) {
     const el = $("sr-status");
@@ -69,7 +90,11 @@
     return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
   }
 
-  function renderGauge(container, score, { delayMs = 0, metric = "readiness", ticks = 20 } = {}) {
+  function renderGauge(
+    container,
+    score,
+    { delayMs = 0, metric = "readiness", ticks = 20, delta = null } = {}
+  ) {
     // Small dials need heavier tick strokes: at ~96px rendered size a
     // 0.9-unit stroke lands sub-pixel and reads as fuzz, not ticks.
     const small = ticks <= 12;
@@ -80,19 +105,25 @@
     const { label, colorVar } = METRICS[metric];
     const empty = score === null || score === undefined;
     const status = empty ? null : scoreStatus(score);
+    const frac = empty ? null : score / 100;
 
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("viewBox", "0 0 100 100");
     svg.setAttribute("role", "img");
     svg.setAttribute(
       "aria-label",
-      empty ? `${label}: no data yet` : `${label} ${score} out of 100 — ${status.word}`
+      empty
+        ? `${label}: no data yet`
+        : `${label} ${score} out of 100 — ${status.word}${deltaPhrase(delta)}`
     );
 
     // Tick ring: minor ticks along the sweep, longer majors at 0/25/50/75/100.
+    // The ring is functional, not ornament: ticks up to the score are lit,
+    // the remainder stays dim — the scale reads before the arc finishes.
     const tickGroup = document.createElementNS(svgNS, "g");
     for (let i = 0; i <= ticks; i++) {
       const major = i % (ticks / 4) === 0;
+      const lit = frac !== null && i / ticks <= frac + 1e-9;
       const deg = GAUGE.startAngle + (i / ticks) * 360 * GAUGE.sweep;
       const [x1, y1] = polar(50, 50, 47, deg);
       const [x2, y2] = polar(50, 50, major ? 42 : 44.5, deg);
@@ -101,7 +132,12 @@
       line.setAttribute("y1", y1.toFixed(2));
       line.setAttribute("x2", x2.toFixed(2));
       line.setAttribute("y2", y2.toFixed(2));
-      line.setAttribute("stroke", major ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.18)");
+      line.setAttribute(
+        "stroke",
+        major
+          ? `rgba(255,255,255,${lit ? 0.72 : 0.26})`
+          : `rgba(255,255,255,${lit ? 0.46 : 0.13})`
+      );
       line.setAttribute("stroke-width", String(major ? majorW : minorW));
       line.setAttribute("stroke-linecap", "round");
       tickGroup.appendChild(line);
@@ -143,6 +179,25 @@
       arc.style.transitionDelay = `${delayMs}ms`;
       arc.setAttribute("transform", `rotate(${GAUGE.startAngle} 50 50)`);
       svg.appendChild(arc);
+
+      // The needle: one longer, metric-colored tick at the score's exact
+      // angular position — the "bug" the lit scale and arc both point at.
+      const needleDeg = GAUGE.startAngle + frac * 360 * GAUGE.sweep;
+      const [nx1, ny1] = polar(50, 50, 48.4, needleDeg);
+      const [nx2, ny2] = polar(50, 50, 40.8, needleDeg);
+      const needle = document.createElementNS(svgNS, "line");
+      needle.setAttribute("class", "gauge-needle");
+      needle.setAttribute("x1", nx1.toFixed(2));
+      needle.setAttribute("y1", ny1.toFixed(2));
+      needle.setAttribute("x2", nx2.toFixed(2));
+      needle.setAttribute("y2", ny2.toFixed(2));
+      needle.setAttribute("stroke", cssVar(colorVar));
+      needle.setAttribute("stroke-width", String(small ? 2.4 : 1.8));
+      needle.setAttribute("stroke-linecap", "round");
+      needle.setAttribute("opacity", "0");
+      // Fade in as the arc sweep arrives at it (same stagger, late in the sweep).
+      needle.style.transitionDelay = `${delayMs + 550}ms`;
+      svg.appendChild(needle);
     }
 
     const text = document.createElementNS(svgNS, "text");
@@ -152,15 +207,19 @@
     text.setAttribute("text-anchor", "middle");
     text.setAttribute("class", empty ? "gauge-num gauge-num--empty" : "gauge-num");
     text.setAttribute("font-size", "28");
-    text.textContent = empty ? "–" : score;
+    text.textContent = empty ? "–" : String(score);
     svg.appendChild(text);
 
     container.appendChild(svg);
+    renderDelta(container, metric, empty ? null : delta);
 
     if (!empty) {
       const arc = svg.querySelector(".gauge-arc");
+      const needle = svg.querySelector(".gauge-needle");
       void svg.getBoundingClientRect(); // commit the hidden arc, then release
       arc.setAttribute("stroke-dashoffset", "0");
+      needle.setAttribute("opacity", "1");
+      animateNumeral(text, score, delayMs);
 
       const word = document.createElement("span");
       word.className = "gauge-status";
@@ -171,7 +230,54 @@
     }
   }
 
-  function renderSummary(summary) {
+  /* Odometer: the numeral counts up 0→score in step with the arc sweep
+     (same 900ms, same ease-out-expo feel; tabular mono digits don't
+     jitter). Time-based so a throttled tab still lands on the final value.
+     Runs only from renderSummary — initial render and manual refresh —
+     never on the 7/30-day toggle, which doesn't touch the dials. */
+  function animateNumeral(textEl, score, delayMs) {
+    if (prefersReducedMotion()) return; // numeral is already at its final value
+    const DURATION = 900;
+    const start = performance.now() + delayMs;
+    const ease = (t) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+    textEl.textContent = "0";
+    const frame = (now) => {
+      const t = Math.min(Math.max((now - start) / DURATION, 0), 1);
+      textEl.textContent = String(Math.round(ease(t) * score));
+      if (t < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+
+  /* The delta line under the dial: signed value in the metric's identity
+     hue (hue = metric identity everywhere), quiet mono "vs avg" after it.
+     delta === null leaves the line empty (sparse history); the element
+     keeps its height so the cards never jump. */
+  function renderDelta(container, metric, delta) {
+    const card = container.closest(".card");
+    const el = card && card.querySelector(".gauge-delta");
+    if (!el) return;
+    el.textContent = "";
+    if (delta === null || delta === undefined) return;
+    if (delta === 0) {
+      el.textContent = "– on avg";
+      return;
+    }
+    const arrow = document.createElement("span");
+    arrow.className = `delta-arrow ${delta > 0 ? "delta-arrow--up" : "delta-arrow--down"}`;
+    const color = cssVar(METRICS[metric].colorVar);
+    if (delta > 0) arrow.style.borderBottomColor = color;
+    else arrow.style.borderTopColor = color;
+    const value = document.createElement("span");
+    value.className = "delta-value";
+    value.textContent = `${delta > 0 ? "+" : "-"}${Math.abs(delta)}`;
+    value.style.color = color;
+    const unit = document.createElement("span");
+    unit.textContent = "vs avg";
+    el.append(arrow, value, unit);
+  }
+
+  function renderSummary(summary, history) {
     for (const el of document.querySelectorAll(".skeleton")) {
       el.classList.remove("skeleton");
     }
@@ -189,16 +295,19 @@
       summary.date === today ? "Today" : `Latest: ${formatDateLabel(summary.date)}`;
     renderGauge(document.querySelector('[data-metric="readiness"]'), summary.readiness, {
       metric: "readiness",
+      delta: sevenDayDelta(history, "readiness", summary),
     });
     renderGauge(document.querySelector('[data-metric="sleep"]'), summary.sleep, {
       metric: "sleep",
       delayMs: 120,
       ticks: 8,
+      delta: sevenDayDelta(history, "sleep", summary),
     });
     renderGauge(document.querySelector('[data-metric="activity"]'), summary.activity, {
       metric: "activity",
       delayMs: 240,
       ticks: 8,
+      delta: sevenDayDelta(history, "activity", summary),
     });
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
@@ -461,7 +570,7 @@
     if (refresh) state.historyCache = {};
     $("owner-controls").hidden = !state.isOwner;
     $("disconnect-row").hidden = !state.isOwner;
-    renderSummary(dash.summary);
+    renderSummary(dash.summary, dash.history.data);
     renderLastSync(dash.last_sync);
     state.historyCache[dash.history.days] = dash.history.data;
     renderHistory(dash.history.data);
