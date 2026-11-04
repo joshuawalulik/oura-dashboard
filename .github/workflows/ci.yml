@@ -63,10 +63,16 @@ jobs:
       - name: Smoke test — demo is up and serving synthetic data
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          body=$(curl -s -m 20 https://oura-demo.joshuawalulik.com/api/status)
-          echo "GET /api/status -> $body"
           # The demo must answer without auth AND declare itself a demo.
-          echo "$body" | grep -q '"demo":true' || {
-            echo "Demo is down or not serving synthetic data" >&2
-            exit 1
-          }
+          # Retried: a freshly created custom domain can lose a DNS/cert
+          # propagation race against the first probe by a few seconds.
+          for attempt in 1 2 3 4 5; do
+            body=$(curl -s -m 20 https://oura-demo.joshuawalulik.com/api/status) || body=""
+            echo "attempt $attempt: GET /api/status -> $body"
+            if echo "$body" | grep -q '"demo":true'; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Demo is down or not serving synthetic data" >&2
+          exit 1

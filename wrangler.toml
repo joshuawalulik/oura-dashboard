@@ -6,15 +6,17 @@ compatibility_date = "2025-09-01"
 # Security requirement: the only way in is the Access-protected custom domain.
 workers_dev = false
 
-# Persist structured console logs to Workers Logs (dashboard: Workers → Logs).
-[observability]
-enabled = true
-
 # Custom domain on the joshuawalulik.com zone. Deploying creates the DNS
-# record and TLS certificate automatically.
+# record and TLS certificate automatically. NOTE: this must stay above the
+# first [table] header — TOML assigns later bare keys to the open table, so
+# below [observability] it would silently become observability.routes.
 routes = [
   { pattern = "oura.joshuawalulik.com", custom_domain = true }
 ]
+
+# Persist structured console logs to Workers Logs (dashboard: Workers → Logs).
+[observability]
+enabled = true
 
 [assets]
 directory = "./public"
