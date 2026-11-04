@@ -228,6 +228,14 @@ apiRoutes.get("/ingest", async (c) => {
   if (!c.get("isOwner")) {
     return c.json({ error: "forbidden" }, 403);
   }
+  // A GET with a side effect (D1 writes, Oura calls) gets the same CSRF
+  // defense as /auth/*: a request carrying another site's Origin is refused.
+  // Typing the URL into the address bar sends no Origin, so the documented
+  // one-time backfill visit still works.
+  const origin = c.req.header("Origin");
+  if (origin && origin !== new URL(c.req.url).origin) {
+    return c.json({ error: "forbidden" }, 403);
+  }
   const raw = c.req.query("backfill");
   let days = INGEST_WINDOW_DAYS;
   if (raw !== undefined) {
