@@ -7,5 +7,6 @@ OWNER_EMAIL = "owner@example.com"
 
 # DEV ONLY: skips Cloudflare Access JWT validation and treats you as the owner.
 # There is no Access in front of `wrangler dev`, so this is required locally.
-# NEVER set this in production.
+# NEVER set this in production — and the code also ignores it there: the
+# bypass only works when GIT_SHA is absent, and CI always deploys with it set.
 ACCESS_DEV_BYPASS = "1"

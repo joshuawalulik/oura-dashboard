@@ -19,17 +19,25 @@ function randomState(): string {
 }
 
 function failurePage(message: string): string {
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Josh's Oura — connection failed</title>
-<body style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem">
-<h1>Couldn't connect Oura</h1><p>${message}</p><p><a href="/">Back to dashboard</a></p></body>`;
+  // The CSP (style-src 'self') blocks inline style attributes, so this page
+  // reuses the site stylesheet and the privacy/terms document classes.
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Josh's Oura — connection failed</title><link rel="stylesheet" href="/styles.css"></head>
+<body class="doc"><header class="site-header"><h1>Couldn't connect Oura</h1></header>
+<main><p>${message}</p><p><a class="back-link" href="/">← Back to dashboard</a></p></main></body></html>`;
 }
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
-// Every /auth/* route is owner-only (spec §4 "Owner-only routes").
+// Every /auth/* route is owner-only (spec §4 "Owner-only routes"), and must
+// originate from our own pages: a request carrying another site's Origin is
+// rejected (CSRF defense independent of the Access cookie's SameSite mode).
 authRoutes.use("*", async (c, next) => {
   if (!c.get("isOwner")) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const origin = c.req.header("Origin");
+  if (origin && origin !== new URL(c.req.url).origin) {
     return c.json({ error: "forbidden" }, 403);
   }
   await next();
