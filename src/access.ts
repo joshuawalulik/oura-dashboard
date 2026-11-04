@@ -119,10 +119,16 @@ export async function verifyAccessJwt(
     false,
     ["verify"]
   );
+  let signatureBytes: Uint8Array;
+  try {
+    signatureBytes = base64UrlToBytes(signatureB64);
+  } catch {
+    throw new AccessJwtError("Undecodable signature");
+  }
   const valid = await crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     cryptoKey,
-    base64UrlToBytes(signatureB64),
+    signatureBytes,
     new TextEncoder().encode(`${headerB64}.${payloadB64}`)
   );
   if (!valid) throw new AccessJwtError("Bad signature");
