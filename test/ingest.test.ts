@@ -51,6 +51,7 @@ function day(date: string, fields: Partial<DayRecord> = {}): DayRecord {
     resting_heart_rate: null,
     average_hrv: null,
     temperature_deviation: null,
+    bedtime_minutes: null,
     ...fields,
   };
 }
@@ -88,6 +89,7 @@ function mockOuraDay(dateIso: string, readiness: number) {
     total_sleep_duration: 26400,
     lowest_heart_rate: 50,
     average_hrv: 40,
+    bedtime_start: `${dateIso}T00:30:00-05:00`,
   });
 }
 
@@ -160,6 +162,7 @@ describe("scheduled ingest", () => {
         resting_heart_rate: 50,
         average_hrv: 40,
         temperature_deviation: 0.1,
+        bedtime_minutes: 30,
       }),
     ]);
   });

@@ -96,8 +96,7 @@ inverted smoke test (must answer *without* auth), hourly uptime probe.
 
 ## 6. Own the data: longitudinal store + insights — ✅ done (PR #11, merged)
 
-Bedtime is the one piece left: it needs a new stored field, a migration, and a
-re-backfill. The sleep pattern landed as sleep length vs the next night's HRV
+The sleep pattern landed as sleep length vs the next night's HRV
 rather than vs readiness, because Oura builds readiness partly from sleep.
 
 The "not a reskin" move: stop being a cached proxy, start owning history
@@ -115,7 +114,8 @@ and computing things Oura's app doesn't show.
 - [x] Correlations: sleep length vs the next night's HRV, day-of-week
       effects — a small "Patterns" panel with 2–3 honest, computed sentences
       (no LLM, no fabrication; each must clear a shuffle test at p < 0.01)
-- [ ] Bedtime correlation: store `bedtime_start` and add a pattern for it
+- [x] Bedtime correlation: bedtime vs that night's HRV, with bedtime stored as
+      minutes from local midnight
 - [x] Demo parity: `src/demo.ts` synthesizes the same insights payload so the
       public demo shows the Patterns panel and baselines
 - [x] Tests: ingest idempotency, baseline math against fixtures, correlation

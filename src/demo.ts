@@ -6,8 +6,16 @@
  */
 import { Hono } from "hono";
 import type { Env, AppVariables } from "./types";
-import { latestRecord, type DayRecord } from "./filter";
-import { computeBaselines, computePatterns } from "./insights";
+import {
+  latestRecord,
+  READINESS_CONTRIBUTOR_LABELS,
+  type DayRecord,
+} from "./filter";
+import {
+  computeBaselines,
+  computePatterns,
+  lowestReadinessInputs,
+} from "./insights";
 import { mulberry32 } from "./prng";
 
 /**
@@ -51,6 +59,12 @@ function demoNight(date: string) {
   return { sleepHours, roughNight, weekend, rand, noise };
 }
 
+/** Minutes from midnight: later on weekends, and it costs that night's HRV. */
+function demoBedtime(date: string, weekend: boolean): number {
+  const rand = mulberry32(hashSeed(`oura-demo:bedtime:${date}`));
+  return Math.round(-35 + (weekend ? 45 : 0) + (rand() * 2 - 1) * 55);
+}
+
 /**
  * One synthetic day, a pure function of the date string alone — so the
  * 7/30-day windows always agree and a sliding window never rewrites
@@ -59,7 +73,8 @@ function demoNight(date: string) {
  * The shape is modeled, not random: weekends sleep longer, sleep drives
  * readiness, a rough night (~1 in 10) drags readiness down and pushes
  * resting HR and temperature up, HRV moves inversely to resting HR, and a
- * short night carries over into the next night's HRV.
+ * short night carries over into the next night's HRV. A late bedtime costs
+ * that same night's HRV too.
  */
 function demoDay(date: string): DayRecord {
   const { sleepHours, roughNight, weekend, rand, noise } = demoNight(date);
@@ -67,6 +82,9 @@ function demoDay(date: string): DayRecord {
   previous.setUTCDate(previous.getUTCDate() - 1);
   const carryover =
     (demoNight(previous.toISOString().slice(0, 10)).sleepHours - 7.2) * 5;
+
+  const bedtime = demoBedtime(date, weekend);
+  const lateCost = (bedtime + 25) * 0.1;
 
   const sleep = clamp(Math.round(34 + sleepHours * 7 + noise() * 5), 40, 97);
   const readiness = clamp(
@@ -85,7 +103,7 @@ function demoDay(date: string): DayRecord {
     66
   );
   const hrv = clamp(
-    Math.round(46 - (restingHr - 53) * 2.2 + carryover + noise() * 8),
+    Math.round(46 - (restingHr - 53) * 2.2 + carryover - lateCost + noise() * 8),
     18,
     90
   );
@@ -100,7 +118,20 @@ function demoDay(date: string): DayRecord {
     resting_heart_rate: restingHr,
     average_hrv: hrv,
     temperature_deviation: Math.round(temperature * 100) / 100,
+    bedtime_minutes: bedtime,
   };
+}
+
+/** Readiness contributors scattered around the day's score. */
+function demoContributors(record: DayRecord): Record<string, number> {
+  const rand = mulberry32(hashSeed(`oura-demo:contributors:${record.date}`));
+  const base = record.readiness ?? 75;
+  return Object.fromEntries(
+    Object.keys(READINESS_CONTRIBUTOR_LABELS).map((key) => [
+      key,
+      clamp(Math.round(base + (rand() * 2 - 1) * 18), 30, 100),
+    ])
+  );
 }
 
 /** Ascending DayRecords for the `days` ending UTC-today. */
@@ -146,6 +177,9 @@ demoRoutes.get("/dashboard", async (c, next) => {
     history: { days, data: history },
     baselines: computeBaselines(insightHistory, latest),
     patterns: computePatterns(insightHistory),
+    lowest_readiness_inputs: latest
+      ? lowestReadinessInputs(demoContributors(latest))
+      : [],
   });
 });
 

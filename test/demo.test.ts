@@ -161,7 +161,7 @@ describe("demo data generator", () => {
 
     const patterns = computePatterns(history);
     expect(patterns.length).toBeGreaterThanOrEqual(1);
-    expect(patterns.length).toBeLessThanOrEqual(3);
+    expect(patterns.length).toBeLessThanOrEqual(4);
     expect(patterns.join(" ")).toContain("After nights longer than");
   });
 });

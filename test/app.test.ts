@@ -278,7 +278,7 @@ describe("/api/dashboard", () => {
           day: today,
           score: 91,
           temperature_deviation: 0.2,
-          contributors: { hrv_balance: 80 },
+          contributors: { hrv_balance: 58, sleep_balance: 80, unknown_input: 3 },
         },
       ],
       next_token: null,
@@ -333,6 +333,10 @@ describe("/api/dashboard", () => {
     expect(raw).not.toContain("average_heart_rate");
     expect(raw).not.toContain("lowest_heart_rate"); // served as resting_heart_rate
     expect(raw).not.toContain("contributors");
+    expect(raw).not.toContain("unknown_input");
+    expect(JSON.parse(raw).lowest_readiness_inputs).toEqual([
+      { name: "HRV balance", score: 58 },
+    ]);
   });
 });
 

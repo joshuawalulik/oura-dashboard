@@ -99,6 +99,15 @@
           <span class="stat-label">Time asleep</span>
           <span class="stat-value" data-stat="sleep-time">–</span>
         </div>
+        <div class="stat skeleton" id="stat-bedtime">
+          <span class="stat-label">Bedtime</span>
+          <span class="stat-value" data-stat="bedtime">–</span>
+        </div>
+        <!-- Hidden unless a readiness contributor sits low today. -->
+        <div class="stat stat--inputs" id="stat-low-inputs" hidden>
+          <span class="stat-label">Low readiness inputs</span>
+          <ul class="stat-inputs" id="low-inputs-list"></ul>
+        </div>
       </div>
     </section>
 
