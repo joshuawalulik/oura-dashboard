@@ -33,10 +33,12 @@ two email addresses.
 - Owns its history: a nightly cron ingests each day into D1, and the
   dashboard reads today against a 28-day rolling baseline ("1.8σ below your
   norm") — something the Oura app itself doesn't show
-- A Patterns panel with computed, honest sentences (sleep length vs the next
-  night's HRV, day-of-week effects), recomputed nightly over up to a year of
+- A Patterns panel with computed, honest sentences (sleep length and bedtime
+  vs HRV, day-of-week effects), recomputed nightly over up to a year of
   history. Each one has to beat a seeded shuffle test at p < 0.01, or it
   doesn't appear: no LLM, no fabrication
+- Names the readiness contributors sitting low today, without guessing at
+  Oura's unpublished weights
 - Pulls from the Oura API v2 over OAuth2, with automatic access-token refresh
   and refresh-token rotation persisted in KV
 - Exactly two email addresses can see it; only the owner can connect or
@@ -115,7 +117,7 @@ layer and the owner/viewer authorization split on top of it.
 
 ## Testing & CI/CD
 
-96 tests run in the real Workers runtime via
+104 tests run in the real Workers runtime via
 `@cloudflare/vitest-pool-workers` — JWT verification against generated RSA
 keys, token refresh/rotation, field-allowlist leak checks, D1 ingest
 idempotency against the checked-in migrations, baseline/correlation math

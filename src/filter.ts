@@ -18,7 +18,21 @@ export interface ScoreDoc {
 /** daily_readiness additionally carries the body-temperature vital. */
 export interface ReadinessDoc extends ScoreDoc {
   temperature_deviation: number | null;
+  /** 0–100 per contributor, allowlisted below; absent ones are left out. */
+  contributors: Record<string, number>;
 }
+
+/** The readiness contributors that may reach the browser, with their labels. */
+export const READINESS_CONTRIBUTOR_LABELS: Record<string, string> = {
+  activity_balance: "Activity balance",
+  body_temperature: "Body temperature",
+  hrv_balance: "HRV balance",
+  previous_day_activity: "Previous day activity",
+  previous_night: "Previous night",
+  recovery_index: "Recovery index",
+  resting_heart_rate: "Resting heart rate",
+  sleep_balance: "Sleep balance",
+};
 
 export interface SleepPeriodDoc {
   day: string;
@@ -26,6 +40,7 @@ export interface SleepPeriodDoc {
   total_sleep_seconds: number | null;
   lowest_heart_rate: number | null;
   average_hrv: number | null;
+  bedtime_minutes: number | null;
 }
 
 /** One merged row served to the client for charting. */
@@ -38,6 +53,8 @@ export interface DayRecord {
   resting_heart_rate: number | null;
   average_hrv: number | null;
   temperature_deviation: number | null;
+  /** Minutes from local midnight: 23:30 is -30, 00:45 is 45. */
+  bedtime_minutes: number | null;
 }
 
 function asRecord(doc: unknown): Record<string, unknown> {
@@ -50,6 +67,29 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * Reads the local clock time straight from Oura's timestamp, which carries
+ * its own offset: going through Date would convert it to the Worker's UTC.
+ * Times from noon on count back from midnight, so 23:30 becomes -30.
+ */
+function bedtimeMinutes(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = /T(\d{2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  const minutes = Number(match[1]) * 60 + Number(match[2]);
+  return minutes >= 12 * 60 ? minutes - 24 * 60 : minutes;
+}
+
+function filterContributors(value: unknown): Record<string, number> {
+  const source = asRecord(value);
+  const kept: Record<string, number> = {};
+  for (const key of Object.keys(READINESS_CONTRIBUTOR_LABELS)) {
+    const score = numberOrNull(source[key]);
+    if (score !== null) kept[key] = score;
+  }
+  return kept;
+}
+
 /** For daily_sleep and daily_activity documents. */
 export function filterScoreDocs(docs: unknown[]): ScoreDoc[] {
   return docs
@@ -58,7 +98,7 @@ export function filterScoreDocs(docs: unknown[]): ScoreDoc[] {
     .map((d) => ({ day: d.day as string, score: numberOrNull(d.score) }));
 }
 
-/** For daily_readiness documents: the score plus temperature deviation (°C). */
+/** For daily_readiness documents: score, temperature (°C), and contributors. */
 export function filterReadinessDocs(docs: unknown[]): ReadinessDoc[] {
   return docs
     .map(asRecord)
@@ -67,6 +107,7 @@ export function filterReadinessDocs(docs: unknown[]): ReadinessDoc[] {
       day: d.day as string,
       score: numberOrNull(d.score),
       temperature_deviation: numberOrNull(d.temperature_deviation),
+      contributors: filterContributors(d.contributors),
     }));
 }
 
@@ -81,6 +122,7 @@ export function filterSleepPeriodDocs(docs: unknown[]): SleepPeriodDoc[] {
       total_sleep_seconds: numberOrNull(d.total_sleep_duration),
       lowest_heart_rate: numberOrNull(d.lowest_heart_rate),
       average_hrv: numberOrNull(d.average_hrv),
+      bedtime_minutes: bedtimeMinutes(d.bedtime_start),
     }));
 }
 
@@ -104,7 +146,7 @@ function eachDate(startDate: string, endDate: string): string[] {
 export function mergeHistory(
   startDate: string,
   endDate: string,
-  readiness: ReadinessDoc[],
+  readiness: Omit<ReadinessDoc, "contributors">[],
   sleep: ScoreDoc[],
   activity: ScoreDoc[],
   sleepPeriods: SleepPeriodDoc[]
@@ -121,6 +163,7 @@ export function mergeHistory(
   const sleepSecondsByDay = new Map<string, number>();
   const restingHrByDay = new Map<string, number>();
   const hrvByDay = new Map<string, { seconds: number; value: number }>();
+  const bedtimeByDay = new Map<string, { seconds: number; value: number }>();
   for (const period of sleepPeriods) {
     if (period.type !== "long_sleep") continue;
     const seconds = period.total_sleep_seconds;
@@ -148,6 +191,16 @@ export function mergeHistory(
         hrvByDay.set(period.day, { seconds: seconds ?? 0, value: period.average_hrv });
       }
     }
+    // Bedtime too: a brief second period isn't when the night began.
+    if (period.bedtime_minutes !== null) {
+      const prev = bedtimeByDay.get(period.day);
+      if (!prev || (seconds ?? 0) > prev.seconds) {
+        bedtimeByDay.set(period.day, {
+          seconds: seconds ?? 0,
+          value: period.bedtime_minutes,
+        });
+      }
+    }
   }
 
   return eachDate(startDate, endDate).map((date) => ({
@@ -159,6 +212,7 @@ export function mergeHistory(
     resting_heart_rate: restingHrByDay.get(date) ?? null,
     average_hrv: hrvByDay.get(date)?.value ?? null,
     temperature_deviation: temperatureByDay.get(date) ?? null,
+    bedtime_minutes: bedtimeByDay.get(date)?.value ?? null,
   }));
 }
 

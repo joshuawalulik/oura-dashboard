@@ -7,6 +7,7 @@ import type { DayRecord } from "../src/filter";
 import {
   computeBaselines,
   computePatterns,
+  lowestReadinessInputs,
   MIN_BASELINE_DAYS,
 } from "../src/insights";
 import { mulberry32 } from "../src/prng";
@@ -22,6 +23,7 @@ function day(date: string, fields: Partial<DayRecord> = {}): DayRecord {
     resting_heart_rate: null,
     average_hrv: null,
     temperature_deviation: null,
+    bedtime_minutes: null,
     ...fields,
   };
 }
@@ -191,6 +193,66 @@ describe("computePatterns: sleep length vs next-night HRV", () => {
   });
 });
 
+describe("computePatterns: bedtime vs that night's HRV", () => {
+  const find = (history: DayRecord[]) =>
+    computePatterns(history).find((s) => s.includes("Nights starting after"));
+
+  it("names the median bedtime as a clock time, either side of midnight", () => {
+    const history = datesEnding(LATEST, 60).map((date, i) => {
+      const late = i % 2 === 0 || i % 7 === 0;
+      return day(date, {
+        bedtime_minutes: (late ? 40 : -80) + (i % 5),
+        average_hrv: (late ? 38 : 50) + (i % 3),
+      });
+    });
+    const sentence = find(history);
+    expect(sentence).toMatch(/after \d{1,2}:\d{2} (am|pm) ran lower HRV/);
+    expect(sentence).toContain("on earlier nights (60 nights)");
+  });
+
+  it("stays silent on unrelated bedtimes and without enough nights", () => {
+    const noise = gaussian(11);
+    const unrelated = datesEnding(LATEST, 60).map((date) =>
+      day(date, {
+        bedtime_minutes: Math.round(-30 + 45 * noise()),
+        average_hrv: Math.round(45 + 8 * noise()),
+      })
+    );
+    expect(find(unrelated)).toBeUndefined();
+
+    const sparse = datesEnding(LATEST, 13).map((date, i) =>
+      day(date, { bedtime_minutes: i % 2 ? 40 : -80, average_hrv: i % 2 ? 38 : 50 })
+    );
+    expect(find(sparse)).toBeUndefined();
+  });
+});
+
+describe("lowestReadinessInputs", () => {
+  it("returns the two lowest under 70, lowest first, labelled", () => {
+    expect(
+      lowestReadinessInputs({
+        hrv_balance: 58,
+        sleep_balance: 64,
+        recovery_index: 41,
+        previous_night: 90,
+      })
+    ).toEqual([
+      { name: "Recovery index", score: 41 },
+      { name: "HRV balance", score: 58 },
+    ]);
+  });
+
+  it("is empty when nothing sits low, or nothing was sent", () => {
+    expect(lowestReadinessInputs({ hrv_balance: 70, sleep_balance: 95 })).toEqual([]);
+    expect(lowestReadinessInputs({})).toEqual([]);
+    expect(lowestReadinessInputs(undefined)).toEqual([]);
+  });
+
+  it("ignores keys outside the allowlist", () => {
+    expect(lowestReadinessInputs({ made_up: 5 })).toEqual([]);
+  });
+});
+
 describe("computePatterns: must beat chance", () => {
   it("rarely states a pattern from history with no real effect in it", () => {
     // The weekday rule alone used to fire on about half of histories like these.
@@ -203,12 +265,13 @@ describe("computePatterns: must beat chance", () => {
           readiness: Math.round(75 + 7 * noise()),
           total_sleep_seconds: Math.round(7 * 3600 + 2400 * noise()),
           average_hrv: Math.round(45 + 8 * noise()),
+          bedtime_minutes: Math.round(-30 + 45 * noise()),
         })
       );
       if (computePatterns(history).length > 0) fired++;
     }
-    // Three tests at p < 0.01 predicts ~3%; 5% leaves room for sampling error.
-    expect(fired / runs).toBeLessThan(0.05);
+    // Four tests at p < 0.01 predicts ~4%; 7% leaves room for sampling error.
+    expect(fired / runs).toBeLessThan(0.07);
   });
 
   it("is repeatable: the same history always gives the same sentences", () => {
@@ -259,10 +322,11 @@ describe("computePatterns: day-of-week and weekend effects", () => {
         total_sleep_seconds:
           (longAt(i) ? 7.5 : 6.5) * 3600 + (dow === 0 || dow === 6 ? 2700 : 0),
         average_hrv: longAt(i - 1) ? 50 : 38,
+        bedtime_minutes: longAt(i - 1) ? -80 : 40,
       });
     });
     const sentences = computePatterns(history);
-    expect(sentences).toHaveLength(3);
+    expect(sentences).toHaveLength(4);
     for (const sentence of sentences) expect(sentence).not.toMatch(/\b(you|your)\b/i);
   });
 

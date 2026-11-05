@@ -63,6 +63,15 @@
     return res.json();
   }
 
+  /* Minutes from local midnight, as the API sends them: -40 is 11:20 pm. */
+  function formatBedtime(minutes) {
+    if (minutes === null || minutes === undefined) return "–";
+    const wrapped = (minutes + 1440) % 1440;
+    const h = Math.floor(wrapped / 60);
+    const m = String(wrapped % 60).padStart(2, "0");
+    return `${h % 12 || 12}:${m} ${h < 12 ? "am" : "pm"}`;
+  }
+
   function formatSleep(seconds) {
     if (seconds === null || seconds === undefined) return "–";
     const h = Math.floor(seconds / 3600);
@@ -380,7 +389,7 @@
 
   function patternSentence(text) {
     const li = document.createElement("li");
-    const numberRun = /\d[\d.,]*(?:h \d{2}m)?/g;
+    const numberRun = /\d[\d.,]*(?::\d{2})?(?:h \d{2}m)?/g;
     let last = 0;
     let match;
     while ((match = numberRun.exec(text))) {
@@ -405,6 +414,26 @@
     }
     for (const text of patterns) list.appendChild(patternSentence(text));
     section.hidden = false;
+  }
+
+  /* ---- Low readiness inputs: which contributors sit low today ----
+     Says which, not how much: Oura doesn't publish the weights. Absent on
+     days nothing sits low, so the tile only appears when it has news. */
+
+  function renderLowInputs(inputs) {
+    const tile = $("stat-low-inputs");
+    const list = $("low-inputs-list");
+    list.textContent = "";
+    const items = Array.isArray(inputs) ? inputs : [];
+    for (const { name, score } of items) {
+      const li = document.createElement("li");
+      const num = document.createElement("span");
+      num.className = "stat-input-num";
+      num.textContent = score;
+      li.append(`${name} `, num);
+      list.appendChild(li);
+    }
+    tile.hidden = items.length === 0;
   }
 
   function renderSummary(summary, history) {
@@ -443,6 +472,8 @@
     renderVitals(summary);
     document.querySelector('[data-stat="sleep-time"]').textContent =
       formatSleep(summary.total_sleep_seconds);
+    document.querySelector('[data-stat="bedtime"]').textContent =
+      formatBedtime(summary.bedtime_minutes);
   }
 
   /* ---- Trend charts ---- */
@@ -792,6 +823,7 @@
     renderSummary(dash.summary, dash.history.data);
     renderZScores(dash.baselines);
     renderPatterns(dash.patterns);
+    renderLowInputs(dash.lowest_readiness_inputs);
     renderLastSync(dash.last_sync);
     state.historyCache[dash.history.days] = dash.history.data;
     renderHistory(dash.history.data);

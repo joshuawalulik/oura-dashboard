@@ -526,6 +526,32 @@ body::before {
   font-variant-numeric: tabular-nums;
 }
 
+/* The label sits over its inputs: two can run too long to share a line. */
+.stat--inputs {
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.stat--inputs[hidden] { display: none; }
+
+.stat-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.stat-input-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
 /* ---- Trends ---- */
 
 #trends { margin-top: var(--sp-6); }
@@ -673,6 +699,7 @@ body::before {
   font-size: 0.9em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+  white-space: nowrap; /* a time like "7h 30m" reads as one number */
 }
 
 /* ---- Readiness heatmap: a row of day lamps above the charts ----

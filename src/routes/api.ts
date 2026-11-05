@@ -24,12 +24,17 @@ import {
   readStoredPatterns,
 } from "../ingest";
 import { readDays } from "../store";
-import { BASELINE_WINDOW_DAYS, computeBaselines, type Baselines } from "../insights";
+import {
+  BASELINE_WINDOW_DAYS,
+  computeBaselines,
+  lowestReadinessInputs,
+  type Baselines,
+} from "../insights";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
 // Bump whenever the filtered shapes change: cached entries written by an
 // older build would otherwise serve without the new fields for up to 3h.
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const LAST_SYNC_KV_KEY = "last_sync";
 
 function isoDate(date: Date): string {
@@ -87,7 +92,7 @@ async function loadHistory(
   env: Env,
   days: number,
   bypassCache: boolean
-): Promise<DayRecord[]> {
+): Promise<{ history: DayRecord[]; readiness: ReadinessDoc[] }> {
   const { start, end } = dateRange(days);
   const [readiness, sleep, activity, sleepPeriods] = await Promise.all([
     cachedCollection<ReadinessDoc>(env, "daily_readiness", start, end, filterReadinessDocs, bypassCache),
@@ -99,7 +104,8 @@ async function loadHistory(
   const merged = mergeHistory(start, end, readiness, sleep, activity, sleepPeriods);
   const last = merged[merged.length - 1];
   const hasData = last && hasAnyData(last);
-  return hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
+  const history = hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
+  return { history, readiness };
 }
 
 /**
@@ -167,8 +173,9 @@ apiRoutes.get("/dashboard", async (c) => {
     return notConnected();
   }
   try {
-    const history = await loadHistory(c.env, days, bypass);
+    const { history, readiness } = await loadHistory(c.env, days, bypass);
     const latest = latestRecord(history);
+    const latestReadiness = readiness.find((d) => d.day === latest?.date);
     const [lastSync, insights] = await Promise.all([
       c.env.OURA_KV.get(LAST_SYNC_KV_KEY),
       loadInsights(c.env, latest),
@@ -182,6 +189,7 @@ apiRoutes.get("/dashboard", async (c) => {
       history: { days, data: history },
       baselines: insights.baselines,
       patterns: insights.patterns,
+      lowest_readiness_inputs: lowestReadinessInputs(latestReadiness?.contributors),
     });
   } catch (err) {
     if (err instanceof NotConnectedError) return notConnected();
@@ -192,7 +200,7 @@ apiRoutes.get("/dashboard", async (c) => {
 apiRoutes.get("/summary", async (c) => {
   const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
   try {
-    const history = await loadHistory(c.env, 7, bypass);
+    const { history } = await loadHistory(c.env, 7, bypass);
     const latest = latestRecord(history);
     const lastSync = await c.env.OURA_KV.get(LAST_SYNC_KV_KEY);
     if (!latest) {
@@ -207,6 +215,7 @@ apiRoutes.get("/summary", async (c) => {
       resting_heart_rate: latest.resting_heart_rate,
       average_hrv: latest.average_hrv,
       temperature_deviation: latest.temperature_deviation,
+      bedtime_minutes: latest.bedtime_minutes,
       last_sync: lastSync,
     });
   } catch (err) {
@@ -218,7 +227,8 @@ apiRoutes.get("/history", async (c) => {
   const days = c.req.query("days") === "30" ? 30 : 7;
   const bypass = wantsRefresh(c.req.query("refresh"), c.get("isOwner"));
   try {
-    return c.json({ days, data: await loadHistory(c.env, days, bypass) });
+    const { history } = await loadHistory(c.env, days, bypass);
+    return c.json({ days, data: history });
   } catch (err) {
     return handleUpstreamError(err);
   }

@@ -24,21 +24,35 @@ describe("field allowlisting", () => {
     expect(filtered).toEqual([{ day: "2026-07-06", score: 82 }]);
   });
 
-  it("keeps only day/score/temperature_deviation from readiness documents", () => {
+  it("keeps only day/score/temperature from readiness documents without contributors", () => {
     const filtered = filterReadinessDocs([
       {
         day: "2026-07-06",
         score: 82,
         temperature_deviation: -0.2,
         // Fields that must NOT leak:
-        contributors: { resting_heart_rate: 48, hrv_balance: 70 },
         temperature_trend_deviation: -0.1,
         id: "abc",
       },
     ]);
     expect(filtered).toEqual([
-      { day: "2026-07-06", score: 82, temperature_deviation: -0.2 },
+      { day: "2026-07-06", score: 82, temperature_deviation: -0.2, contributors: {} },
     ]);
+  });
+
+  it("keeps only allowlisted, numeric readiness contributors", () => {
+    const [doc] = filterReadinessDocs([
+      {
+        day: "2026-07-06",
+        contributors: {
+          hrv_balance: 70,
+          sleep_balance: 64,
+          recovery_index: null, // Oura leaves some unset
+          some_new_contributor: 12, // must not leak
+        },
+      },
+    ]);
+    expect(doc.contributors).toEqual({ hrv_balance: 70, sleep_balance: 64 });
   });
 
   it("tolerates missing scores and skips malformed documents", () => {
@@ -48,11 +62,22 @@ describe("field allowlisting", () => {
     expect(
       filterReadinessDocs([{ day: "2026-07-06" }, { score: 12 }, null, "junk"])
     ).toEqual([
-      { day: "2026-07-06", score: null, temperature_deviation: null },
+      { day: "2026-07-06", score: null, temperature_deviation: null, contributors: {} },
     ]);
   });
 
-  it("keeps only day/type/duration/lowest HR/HRV from sleep periods", () => {
+  it("reads bedtime from the local clock in Oura's timestamp", () => {
+    const minutes = (bedtime_start: unknown) =>
+      filterSleepPeriodDocs([{ day: "2026-07-06", bedtime_start }])[0].bedtime_minutes;
+    expect(minutes("2026-07-05T23:04:00+02:00")).toBe(-56);
+    expect(minutes("2026-07-06T00:45:00-04:00")).toBe(45);
+    expect(minutes("2026-07-05T12:00:00-04:00")).toBe(-720);
+    expect(minutes("2026-07-06T11:59:00-04:00")).toBe(719);
+    expect(minutes("not a time")).toBeNull();
+    expect(minutes(undefined)).toBeNull();
+  });
+
+  it("keeps only day/type/duration/lowest HR/HRV/bedtime from sleep periods", () => {
     const filtered = filterSleepPeriodDocs([
       {
         day: "2026-07-06",
@@ -63,7 +88,8 @@ describe("field allowlisting", () => {
         average_heart_rate: 52, // must not leak
         heart_rate: { items: [50, 51] }, // must not leak
         hrv: { items: [38, 44] }, // must not leak
-        bedtime_start: "2026-07-05T23:04:00+02:00", // must not leak
+        bedtime_start: "2026-07-05T23:04:00+02:00",
+        bedtime_end: "2026-07-06T07:10:00+02:00", // must not leak
       },
     ]);
     expect(filtered).toEqual([
@@ -73,18 +99,20 @@ describe("field allowlisting", () => {
         total_sleep_seconds: 27000,
         lowest_heart_rate: 44,
         average_hrv: 41,
+        bedtime_minutes: -56,
       },
     ]);
   });
 });
 
-function sleepPeriod(overrides: Partial<SleepPeriodDoc> = {}) {
+function sleepPeriod(overrides: Partial<SleepPeriodDoc> = {}): SleepPeriodDoc {
   return {
     day: "2026-07-05",
     type: "long_sleep",
     total_sleep_seconds: 25200,
     lowest_heart_rate: null,
     average_hrv: null,
+    bedtime_minutes: null,
     ...overrides,
   };
 }
@@ -98,9 +126,18 @@ const emptyRow = (date: string) => ({
   resting_heart_rate: null,
   average_hrv: null,
   temperature_deviation: null,
+  bedtime_minutes: null,
 });
 
 describe("mergeHistory", () => {
+  it("takes bedtime from the night's longest period", () => {
+    const [row] = mergeHistory("2026-07-05", "2026-07-05", [], [], [], [
+      sleepPeriod({ total_sleep_seconds: 1800, bedtime_minutes: -200 }),
+      sleepPeriod({ total_sleep_seconds: 25200, bedtime_minutes: 15 }),
+    ]);
+    expect(row.bedtime_minutes).toBe(15);
+  });
+
   it("produces one row per date with nulls for missing data", () => {
     const rows = mergeHistory(
       "2026-07-04",
@@ -121,6 +158,7 @@ describe("mergeHistory", () => {
         resting_heart_rate: 52,
         average_hrv: 41,
         temperature_deviation: 0.2,
+        bedtime_minutes: null,
       },
       emptyRow("2026-07-06"),
     ]);

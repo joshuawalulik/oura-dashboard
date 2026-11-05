@@ -4,7 +4,7 @@
  * every number is computed from the rows passed in, nothing is fabricated,
  * and anything below its evidence threshold is simply omitted.
  */
-import type { DayRecord } from "./filter";
+import { READINESS_CONTRIBUTOR_LABELS, type DayRecord } from "./filter";
 import { mulberry32 } from "./prng";
 
 /** Metrics that get a rolling baseline. */
@@ -95,7 +95,32 @@ export function computeBaselines(
   return Object.keys(metrics).length > 0 ? { window_days: windowDays, metrics } : null;
 }
 
-/* ---- Patterns: 2–3 computed, honest sentences ----
+/* ---- Readiness inputs: which contributors sit low today ---- */
+
+/** Below this a contributor counts as low, matching the dial's "Low" word. */
+export const LOW_INPUT_SCORE = 70;
+const MAX_LOW_INPUTS = 2;
+
+export interface ReadinessInput {
+  name: string;
+  score: number;
+}
+
+/**
+ * The lowest contributors under LOW_INPUT_SCORE, lowest first. This says which
+ * inputs sit low, not how much each cost: Oura doesn't publish the weights.
+ */
+export function lowestReadinessInputs(
+  contributors: Record<string, number> | undefined
+): ReadinessInput[] {
+  return Object.entries(contributors ?? {})
+    .filter(([key, score]) => key in READINESS_CONTRIBUTOR_LABELS && score < LOW_INPUT_SCORE)
+    .map(([key, score]) => ({ name: READINESS_CONTRIBUTOR_LABELS[key], score }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, MAX_LOW_INPUTS);
+}
+
+/* ---- Patterns: a few computed, honest sentences ----
  *
  * A pattern has to clear two gates. Its effect must be big enough to matter
  * (the MIN_* thresholds), and it must beat chance: shuffling the outcome
@@ -136,6 +161,14 @@ const DAY_NAMES = [
 
 function dayOfWeek(isoDate: string): number {
   return new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+}
+
+/** Minutes from local midnight as a clock time: -40 is "11:20 pm". */
+function formatClock(minutes: number): string {
+  const wrapped = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const m = String(wrapped % 60).padStart(2, "0");
+  return `${h % 12 || 12}:${m} ${h < 12 ? "am" : "pm"}`;
 }
 
 function formatHours(seconds: number): string {
@@ -195,8 +228,51 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** A correlation restated as a median split, once it has passed every gate. */
+interface SplitEffect {
+  cut: number;
+  /** Mean outcome on days above the cut, then at or below it. */
+  above: number;
+  below: number;
+  pairs: number;
+}
+
 /**
- * Sleep length vs the following night's HRV, phrased via a median split.
+ * Tests [cause, HRV] pairs: a large enough correlation, a median split that
+ * tells the same story by at least MIN_HRV_GAP_MS, and a shuffle test.
+ */
+function hrvSplit(pairs: Array<[number, number]>): SplitEffect | null {
+  if (pairs.length < MIN_PATTERN_DAYS) return null;
+
+  const r = pearson(pairs);
+  if (Math.abs(r) < MIN_CORRELATION) return null;
+
+  const cut = median(pairs.map((p) => p[0]));
+  const above = pairs.filter((p) => p[0] > cut).map((p) => p[1]);
+  const below = pairs.filter((p) => p[0] <= cut).map((p) => p[1]);
+  if (above.length < 5 || below.length < 5) return null;
+  const gap = meanOf(above) - meanOf(below);
+  // The split must tell the same story as the correlation, or say nothing.
+  if (Math.abs(gap) < MIN_HRV_GAP_MS || Math.sign(gap) !== Math.sign(r)) {
+    return null;
+  }
+
+  // Shuffling HRV keeps its mean and spread, so of Pearson's r only the
+  // covariance term changes: this sum ranks orderings exactly as |r| would.
+  const causeMean = meanOf(pairs.map((p) => p[0]));
+  const weights = pairs.map((p) => p[0] - causeMean);
+  const covariance = (hrv: Float64Array) => {
+    let sum = 0;
+    for (let i = 0; i < hrv.length; i++) sum += weights[i] * hrv[i];
+    return Math.abs(sum);
+  };
+  if (!beatsChance(pairs.map((p) => p[1]), covariance)) return null;
+
+  return { cut, above: meanOf(above), below: meanOf(below), pairs: pairs.length };
+}
+
+/**
+ * Sleep length vs the following night's HRV.
  * Not vs readiness: Oura builds readiness partly from the night's sleep, so
  * that correlation is largely baked in. HRV is measured, and the one-day lag
  * keeps the night being judged out of the outcome. Pairs must be consecutive
@@ -211,38 +287,30 @@ function sleepRecoveryPattern(history: DayRecord[]): string | null {
       pairs.push([r.total_sleep_seconds, nextHrv]);
     }
   }
-  if (pairs.length < MIN_PATTERN_DAYS) return null;
+  const effect = hrvSplit(pairs);
+  if (!effect) return null;
 
-  const r = pearson(pairs);
-  if (Math.abs(r) < MIN_CORRELATION) return null;
-
-  const cut = median(pairs.map((p) => p[0]));
-  const longer = pairs.filter((p) => p[0] > cut).map((p) => p[1]);
-  const shorter = pairs.filter((p) => p[0] <= cut).map((p) => p[1]);
-  if (longer.length < 5 || shorter.length < 5) return null;
-  const gap = meanOf(longer) - meanOf(shorter);
-  // The split must tell the same story as the correlation, or say nothing.
-  if (Math.abs(gap) < MIN_HRV_GAP_MS || Math.sign(gap) !== Math.sign(r)) {
-    return null;
-  }
-
-  // Shuffling HRV keeps its mean and spread, so of Pearson's r only the
-  // covariance term changes: this sum ranks orderings exactly as |r| would.
-  const sleepMean = meanOf(pairs.map((p) => p[0]));
-  const weights = pairs.map((p) => p[0] - sleepMean);
-  const covariance = (hrv: Float64Array) => {
-    let sum = 0;
-    for (let i = 0; i < hrv.length; i++) sum += weights[i] * hrv[i];
-    return Math.abs(sum);
-  };
-  if (!beatsChance(pairs.map((p) => p[1]), covariance)) return null;
-
-  const a = Math.round(meanOf(longer));
-  const b = Math.round(meanOf(shorter));
-  const direction = gap > 0 ? "higher" : "lower";
+  const direction = effect.above > effect.below ? "higher" : "lower";
   return (
-    `After nights longer than ${formatHours(cut)}, the next night's HRV ran ${direction} — ` +
-    `averaging ${a} vs ${b} ms after shorter nights (${pairs.length} nights).`
+    `After nights longer than ${formatHours(effect.cut)}, the next night's HRV ran ${direction} — ` +
+    `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
+    `after shorter nights (${effect.pairs} nights).`
+  );
+}
+
+/** Bedtime vs HRV across that same night, which bedtime comes before. */
+function bedtimeRecoveryPattern(history: DayRecord[]): string | null {
+  const pairs = history
+    .filter((r) => r.bedtime_minutes !== null && r.average_hrv !== null)
+    .map((r) => [r.bedtime_minutes, r.average_hrv] as [number, number]);
+  const effect = hrvSplit(pairs);
+  if (!effect) return null;
+
+  const direction = effect.above > effect.below ? "higher" : "lower";
+  return (
+    `Nights starting after ${formatClock(effect.cut)} ran ${direction} HRV — ` +
+    `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
+    `on earlier nights (${effect.pairs} nights).`
   );
 }
 
@@ -331,12 +399,13 @@ function weekendSleepPattern(history: DayRecord[]): string | null {
 }
 
 /**
- * Up to three sentences, each earned by its own evidence threshold. An empty
+ * Up to four sentences, each earned by its own evidence threshold. An empty
  * array means the panel is hidden entirely — never filler, never guesses.
  */
 export function computePatterns(history: DayRecord[]): string[] {
   return [
     sleepRecoveryPattern(history),
+    bedtimeRecoveryPattern(history),
     weekdayReadinessPattern(history),
     weekendSleepPattern(history),
   ].filter((s): s is string => s !== null);
