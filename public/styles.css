@@ -694,6 +694,55 @@ body::before {
   background: var(--accent);
 }
 
+.patterns-list[hidden] { display: none; }
+
+/* Results with no link are real findings, so they stay readable; only the
+   copper tick drops away, because the lamp marks what was found. */
+.patterns-list--none li::before { background: var(--text-muted); }
+
+.patterns-subhead {
+  margin: var(--sp-4) 0 var(--sp-3);
+  padding: var(--sp-4) 0.25rem 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.patterns-list:first-of-type[hidden] + .patterns-subhead {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.pattern-math summary {
+  width: fit-content;
+  padding: var(--sp-1) 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.pattern-math dl {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+}
+
+.pattern-math dt {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.pattern-math dd { margin: 0; }
+
 .pattern-num {
   font-family: var(--font-mono);
   font-size: 0.9em;

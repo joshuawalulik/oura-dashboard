@@ -160,3 +160,21 @@ Recruiters read READMEs, not `src/`.
 - [ ] Repo description + topics on GitHub so it surfaces in searches
 
 Files: `README.md`, `docs/case-study.md` (new), `docs/img/` (new)
+
+## 9. Show the evidence (after 6)
+
+Oura already covers a lot here: Symptom Radar reads more signals than a simple
+rule could, and it has its own tag discoveries and experiments. What it doesn't
+do is show the numbers behind a personal result, or reach someone without a
+ring. So the pitch is that this dashboard shows its evidence.
+
+- [x] Show the math: every tested pattern carries its comparison, effect size,
+      minimum, and shuffle result, and tested ideas with no clear link are
+      listed alongside the ones found
+- [ ] Personal experiments: any habit and date range, reported with the same
+      evidence, including "no clear effect"
+- [ ] Multi-signal partner alert: a trigger for group 7, not a detector to rival
+      Symptom Radar
+
+Files: `src/insights.ts`, `src/ingest.ts`, `public/app.js`, `public/index.html`,
+`public/styles.css`, `test/`

@@ -47,7 +47,10 @@ describe("demo API", () => {
       expect(typeof stat.z).toBe("number");
     }
     expect(Array.isArray(body.patterns)).toBe(true);
-    for (const sentence of body.patterns) expect(typeof sentence).toBe("string");
+    for (const pattern of body.patterns) {
+      expect(typeof pattern.sentence).toBe("string");
+      expect(pattern.math.length).toBeGreaterThan(0);
+    }
   });
 
   it("serves 30-day history with plausible, in-range values", async () => {
@@ -160,8 +163,9 @@ describe("demo data generator", () => {
     expect(baselines!.metrics.readiness!.sd).toBeGreaterThan(0);
 
     const patterns = computePatterns(history);
-    expect(patterns.length).toBeGreaterThanOrEqual(1);
+    const found = patterns.filter((p) => p.status === "found");
+    expect(found.length).toBeGreaterThanOrEqual(1);
     expect(patterns.length).toBeLessThanOrEqual(4);
-    expect(patterns.join(" ")).toContain("After nights longer than");
+    expect(found.map((p) => p.sentence).join(" ")).toContain("After nights longer than");
   });
 });

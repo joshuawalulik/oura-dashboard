@@ -382,38 +382,63 @@
     for (const metric of Object.keys(METRICS)) renderZ(metric, baselines);
   }
 
-  /* ---- Patterns: computed sentences from the stored history ----
-     The section exists only when the API sent sentences — insufficient
-     data means no panel at all, never filler. Digit runs get mono spans
-     so numbers keep tabular B612 Mono inside B612 prose. */
+  /* ---- Patterns: computed results from the stored history ----
+     The section exists only when the API sent results — too little data to
+     test means no panel at all, never filler. Every result carries its
+     working in a native disclosure. Digit runs get mono spans so numbers
+     keep tabular B612 Mono inside B612 prose. */
 
-  function patternSentence(text) {
-    const li = document.createElement("li");
+  function appendWithNumbers(parent, text) {
     const numberRun = /\d[\d.,]*(?::\d{2})?(?:h \d{2}m)?/g;
     let last = 0;
     let match;
     while ((match = numberRun.exec(text))) {
-      if (match.index > last) li.append(text.slice(last, match.index));
+      if (match.index > last) parent.append(text.slice(last, match.index));
       const num = document.createElement("span");
       num.className = "pattern-num";
       num.textContent = match[0];
-      li.append(num);
+      parent.append(num);
       last = match.index + match[0].length;
     }
-    if (last < text.length) li.append(text.slice(last));
+    if (last < text.length) parent.append(text.slice(last));
+  }
+
+  function patternMath(rows) {
+    const details = document.createElement("details");
+    details.className = "pattern-math";
+    const summary = document.createElement("summary");
+    summary.textContent = "Show the math";
+    const list = document.createElement("dl");
+    for (const { label, value } of rows) {
+      const row = document.createElement("div");
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const definition = document.createElement("dd");
+      appendWithNumbers(definition, value);
+      row.append(term, definition);
+      list.append(row);
+    }
+    details.append(summary, list);
+    return details;
+  }
+
+  function patternItem(pattern) {
+    const li = document.createElement("li");
+    appendWithNumbers(li, pattern.sentence);
+    li.append(patternMath(pattern.math));
     return li;
   }
 
   function renderPatterns(patterns) {
-    const section = $("patterns");
-    const list = $("patterns-list");
-    list.textContent = "";
-    if (!Array.isArray(patterns) || patterns.length === 0) {
-      section.hidden = true;
-      return;
-    }
-    for (const text of patterns) list.appendChild(patternSentence(text));
-    section.hidden = false;
+    const results = Array.isArray(patterns) ? patterns : [];
+    const found = results.filter((p) => p.status === "found");
+    const noLink = results.filter((p) => p.status !== "found");
+    $("patterns-list").replaceChildren(...found.map(patternItem));
+    $("patterns-none").replaceChildren(...noLink.map(patternItem));
+    $("patterns-list").hidden = found.length === 0;
+    $("patterns-none").hidden = noLink.length === 0;
+    $("patterns-none-title").hidden = noLink.length === 0;
+    $("patterns").hidden = results.length === 0;
   }
 
   /* ---- Low readiness inputs: which contributors sit low today ----

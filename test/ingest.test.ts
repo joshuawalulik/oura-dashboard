@@ -296,8 +296,7 @@ describe("patterns refresh during ingest", () => {
       createExecutionContext()
     );
 
-    const stored = JSON.parse((await testEnv.OURA_KV.get("patterns")) ?? "[]");
-    expect(stored.join(" ")).toContain("Weekend nights");
+    expect(await testEnv.OURA_KV.get("patterns")).toContain("Weekend nights");
   });
 
   it("the owner's manual ingest refreshes them too", async () => {
@@ -376,8 +375,12 @@ describe("/api/dashboard insights", () => {
     // Today's 91 sits well above the seeded ~70 mean.
     expect(readiness.z).toBeGreaterThan(1);
 
-    expect(body.patterns.length).toBeGreaterThanOrEqual(2);
-    expect(body.patterns.join(" ")).toContain("After nights longer than");
+    const found = body.patterns.filter((p: any) => p.status === "found");
+    expect(found.length).toBeGreaterThanOrEqual(2);
+    expect(found.map((p: any) => p.sentence).join(" ")).toContain(
+      "After nights longer than"
+    );
+    expect(found[0].math.length).toBeGreaterThan(0);
   });
 
   it("shows no sentences until an ingest has computed them", async () => {
@@ -397,6 +400,20 @@ describe("/api/dashboard insights", () => {
     });
     const body = (await res.json()) as Record<string, any>;
     expect(body.baselines).not.toBeNull();
+    expect(body.patterns).toEqual([]);
+  });
+
+  it("skips plain sentences saved by an older build until the next ingest", async () => {
+    await connectTokens();
+    const today = new Date().toISOString().slice(0, 10);
+    await testEnv.OURA_KV.put("patterns", JSON.stringify(["An older sentence."]));
+    mockOuraDay(today, 88);
+
+    const res = await SELF.fetch("https://dashboard.test/api/dashboard", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    const body = (await res.json()) as Record<string, any>;
+    expect(res.status).toBe(200);
     expect(body.patterns).toEqual([]);
   });
 
