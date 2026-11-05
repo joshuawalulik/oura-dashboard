@@ -256,13 +256,82 @@ describe("/api/ingest", () => {
   });
 });
 
+/** Days ending at `end` (inclusive), oldest first. */
+function daysEnding(end: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(`${end}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - (count - 1 - i));
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+describe("patterns refresh during ingest", () => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  /** Weekends run long in the older days; the latest 90 are perfectly flat. */
+  async function seedOldWeekendGap() {
+    await upsertDays(
+      testEnv.OURA_DB,
+      daysEnding(today, 200).map((date, i) => {
+        const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+        const weekend = dow === 0 || dow === 6;
+        return day(date, {
+          total_sleep_seconds: 7 * 3600 + (i < 110 && weekend ? 5400 : 0),
+        });
+      })
+    );
+  }
+
+  it("the nightly run saves sentences, drawing on history past 90 days", async () => {
+    await connectTokens();
+    await seedOldWeekendGap();
+    mockOuraDay(today, 88);
+
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: "0 13 * * *" } as ScheduledController,
+      testEnv,
+      createExecutionContext()
+    );
+
+    const stored = JSON.parse((await testEnv.OURA_KV.get("patterns")) ?? "[]");
+    expect(stored.join(" ")).toContain("Weekend nights");
+  });
+
+  it("the owner's manual ingest refreshes them too", async () => {
+    await connectTokens();
+    await seedOldWeekendGap();
+    mockOuraDay(today, 88);
+
+    const res = await SELF.fetch("https://dashboard.test/api/ingest", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    expect(res.status).toBe(200);
+    expect(await testEnv.OURA_KV.get("patterns")).toContain("Weekend nights");
+  });
+
+  it("overwrites old sentences when the history no longer earns them", async () => {
+    await connectTokens();
+    await testEnv.OURA_KV.put("patterns", JSON.stringify(["A stale sentence."]));
+    mockOuraDay(today, 88);
+
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: "0 13 * * *" } as ScheduledController,
+      testEnv,
+      createExecutionContext()
+    );
+
+    expect(await testEnv.OURA_KV.get("patterns")).toBe("[]");
+  });
+});
+
 describe("/api/dashboard insights", () => {
-  it("serves baselines and patterns from the stored history", async () => {
+  it("serves baselines from D1 and the patterns the last ingest saved", async () => {
     await connectTokens();
     const today = new Date().toISOString().slice(0, 10);
 
     // Seed 56 days of history before today: readiness alternating around 70,
-    // strongly sleep-correlated, Mondays dragged low, weekends sleeping long.
+    // Mondays dragged low, weekends sleeping long, and each night's HRV set by
+    // how long the night before it ran.
     const seed: DayRecord[] = [];
     for (let i = 56; i >= 1; i--) {
       const d = new Date(`${today}T00:00:00Z`);
@@ -277,11 +346,16 @@ describe("/api/dashboard insights", () => {
           sleep: 75,
           total_sleep_seconds: (long ? 8.2 : 6.3) * 3600 + (weekend ? 2700 : 0),
           resting_heart_rate: 52,
-          average_hrv: 41,
+          average_hrv: (i + 1) % 2 === 0 ? 52 : 38,
         })
       );
     }
     await upsertDays(testEnv.OURA_DB, seed);
+    mockOuraDay(today, 91);
+    const ingested = await SELF.fetch("https://dashboard.test/api/ingest", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    expect(ingested.status).toBe(200);
 
     mockOuraDay(today, 91);
     const res = await SELF.fetch("https://dashboard.test/api/dashboard", {
@@ -300,7 +374,27 @@ describe("/api/dashboard insights", () => {
     expect(readiness.z).toBeGreaterThan(1);
 
     expect(body.patterns.length).toBeGreaterThanOrEqual(2);
-    expect(body.patterns.join(" ")).toContain("Nights longer than");
+    expect(body.patterns.join(" ")).toContain("After nights longer than");
+  });
+
+  it("shows no sentences until an ingest has computed them", async () => {
+    await connectTokens();
+    const today = new Date().toISOString().slice(0, 10);
+    await upsertDays(
+      testEnv.OURA_DB,
+      daysEnding(today, 56).map((date) => {
+        const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+        return day(date, { readiness: dow === 1 ? 58 : 80 });
+      })
+    );
+    mockOuraDay(today, 88);
+
+    const res = await SELF.fetch("https://dashboard.test/api/dashboard", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    const body = (await res.json()) as Record<string, any>;
+    expect(body.baselines).not.toBeNull();
+    expect(body.patterns).toEqual([]);
   });
 
   it("degrades to no insights when D1 is empty", async () => {

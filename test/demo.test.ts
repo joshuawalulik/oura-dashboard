@@ -150,9 +150,9 @@ describe("demo data generator", () => {
   });
 
   it("feeds the same insight math the real dashboard uses, and it has a story", async () => {
-    // Fixed date for determinism. The generator models sleep driving
-    // readiness and longer weekends, so the public demo always has real
-    // baselines and at least one honest pattern sentence to show.
+    // Fixed date for determinism. The generator models a short night
+    // carrying into the next night's HRV and longer weekends, so the public
+    // demo always has real baselines and an honest pattern sentence to show.
     const history = demoHistory(91, new Date("2026-11-04T12:00:00Z"));
     const baselines = computeBaselines(history, latestRecord(history));
     expect(baselines).not.toBeNull();
@@ -162,5 +162,6 @@ describe("demo data generator", () => {
     const patterns = computePatterns(history);
     expect(patterns.length).toBeGreaterThanOrEqual(1);
     expect(patterns.length).toBeLessThanOrEqual(3);
+    expect(patterns.join(" ")).toContain("After nights longer than");
   });
 });

@@ -17,9 +17,14 @@ import {
   type ScoreDoc,
   type SleepPeriodDoc,
 } from "../filter";
-import { ingestDays, INGEST_WINDOW_DAYS, MAX_BACKFILL_DAYS } from "../ingest";
+import {
+  ingestDays,
+  INGEST_WINDOW_DAYS,
+  MAX_BACKFILL_DAYS,
+  readStoredPatterns,
+} from "../ingest";
 import { readDays } from "../store";
-import { computeBaselines, computePatterns, type Baselines } from "../insights";
+import { BASELINE_WINDOW_DAYS, computeBaselines, type Baselines } from "../insights";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
 // Bump whenever the filtered shapes change: cached entries written by an
@@ -97,13 +102,11 @@ async function loadHistory(
   return hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
 }
 
-/** How much D1 history feeds the Patterns panel. */
-const PATTERN_WINDOW_DAYS = 90;
-
 /**
- * Baselines + patterns from the D1 day history. The latest day itself comes
- * from the live (KV-cached) load, so its z-score is fresh even before
- * tonight's ingest lands. Insights are strictly additive: any D1 failure —
+ * Baselines from the D1 day history, plus the sentences the last ingest
+ * computed. The latest day itself comes from the live (KV-cached) load, so
+ * its z-score is fresh even before tonight's ingest lands. Insights are
+ * strictly additive: any D1 failure —
  * database missing, not yet created, not yet backfilled — degrades to
  * "no insights" and never breaks the dashboard.
  */
@@ -115,12 +118,12 @@ async function loadInsights(
   if (!latest || !env.OURA_DB) return none;
   try {
     const start = new Date(`${latest.date}T00:00:00Z`);
-    start.setUTCDate(start.getUTCDate() - PATTERN_WINDOW_DAYS);
-    const rows = await readDays(env.OURA_DB, isoDate(start), latest.date);
-    return {
-      baselines: computeBaselines(rows, latest),
-      patterns: computePatterns(rows),
-    };
+    start.setUTCDate(start.getUTCDate() - BASELINE_WINDOW_DAYS);
+    const [rows, patterns] = await Promise.all([
+      readDays(env.OURA_DB, isoDate(start), latest.date),
+      readStoredPatterns(env),
+    ]);
+    return { baselines: computeBaselines(rows, latest), patterns };
   } catch (err) {
     console.error("insights_error", err instanceof Error ? err.message : "unknown");
     return none;

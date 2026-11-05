@@ -94,28 +94,33 @@ deterministic synthetic data from `src/demo.ts` — no Access in front, no
 KV/secrets behind, OAuth routes 404, banner on the page, CI deploy +
 inverted smoke test (must answer *without* auth), hourly uptime probe.
 
-## 6. Own the data: longitudinal store + insights
+## 6. Own the data: longitudinal store + insights — ✅ done (PR #11, merged)
+
+Bedtime is the one piece left: it needs a new stored field, a migration, and a
+re-backfill. The sleep pattern landed as sleep length vs the next night's HRV
+rather than vs readiness, because Oura builds readiness partly from sleep.
 
 The "not a reskin" move: stop being a cached proxy, start owning history
 and computing things Oura's app doesn't show.
 
-- [ ] D1 database (`[[d1_databases]]` in wrangler.toml) with a `days` table
+- [x] D1 database (`[[d1_databases]]` in wrangler.toml) with a `days` table
       mirroring the `DayRecord` shape; migrations checked in
-- [ ] Nightly ingest: a `[triggers]` cron + `scheduled()` handler upserts the
+- [x] Nightly ingest: a `[triggers]` cron + `scheduled()` handler upserts the
       last ~7 days of filtered Oura data into D1 (idempotent, so late ring
       syncs self-heal); manual `/api/ingest?backfill=365` owner route to
       backfill history once
-- [ ] Baselines: 28-day rolling mean and σ per metric, computed in SQL or in
+- [x] Baselines: 28-day rolling mean and σ per metric, computed in SQL or in
       the Worker; serve `vs baseline` z-scores in `/api/dashboard` and show
       them where the 7-day deltas live today (e.g. "HRV 1.8σ below your norm")
-- [ ] Correlations: bedtime/sleep-length vs next-day readiness, day-of-week
+- [x] Correlations: sleep length vs the next night's HRV, day-of-week
       effects — a small "Patterns" panel with 2–3 honest, computed sentences
-      (no LLM, no fabrication; hide any correlation with insufficient data)
-- [ ] Demo parity: `src/demo.ts` synthesizes the same insights payload so the
+      (no LLM, no fabrication; each must clear a shuffle test at p < 0.01)
+- [ ] Bedtime correlation: store `bedtime_start` and add a pattern for it
+- [x] Demo parity: `src/demo.ts` synthesizes the same insights payload so the
       public demo shows the Patterns panel and baselines
-- [ ] Tests: ingest idempotency, baseline math against fixtures, correlation
+- [x] Tests: ingest idempotency, baseline math against fixtures, correlation
       windows with missing days
-- [ ] KV keeps its role (tokens + 3h response cache); D1 is history only
+- [x] KV keeps its role (tokens + 3h response cache); D1 is history only
 
 Files: `wrangler.toml`, `src/ingest.ts` (new), `src/insights.ts` (new),
 `src/routes/api.ts`, `src/demo.ts`, `src/types.ts`, `public/app.js`,
