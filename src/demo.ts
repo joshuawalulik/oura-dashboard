@@ -8,12 +8,13 @@ import { Hono } from "hono";
 import type { Env, AppVariables } from "./types";
 import { latestRecord, type DayRecord } from "./filter";
 import { computeBaselines, computePatterns } from "./insights";
+import { mulberry32 } from "./prng";
 
 /**
- * How much synthetic history feeds the demo's baselines and patterns —
- * matching the real dashboard's 90-day D1 window (inclusive of today).
- * The demo Worker has no D1 (and must never touch one); the same insight
- * math simply runs over generated days instead of stored ones.
+ * How much synthetic history feeds the demo's baselines and patterns. The
+ * demo Worker has no D1 or KV (and must never touch them), so the same
+ * insight math runs on each request over generated days instead. That is
+ * why this stays well short of the real dashboard's year-long nightly run.
  */
 const DEMO_INSIGHT_DAYS = 91;
 
@@ -33,20 +34,21 @@ function hashSeed(str: string): number {
   return (h ^= h >>> 16) >>> 0;
 }
 
-/** mulberry32 — tiny deterministic PRNG; plenty for plausible vitals. */
-function mulberry32(seed: number): () => number {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, value));
+}
+
+/** The night behind a date; the generator continues from the same `rand`. */
+function demoNight(date: string) {
+  const rand = mulberry32(hashSeed(`oura-demo:${date}`));
+  const noise = () => rand() * 2 - 1;
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const weekend = dow === 0 || dow === 6;
+  const roughNight = rand() < 0.1;
+  const sleepHours = roughNight
+    ? 5.1 + rand() * 0.9
+    : 7.1 + (weekend ? 0.5 : 0) + noise() * 0.8;
+  return { sleepHours, roughNight, weekend, rand, noise };
 }
 
 /**
@@ -56,18 +58,16 @@ function clamp(value: number, lo: number, hi: number): number {
  *
  * The shape is modeled, not random: weekends sleep longer, sleep drives
  * readiness, a rough night (~1 in 10) drags readiness down and pushes
- * resting HR and temperature up, and HRV moves inversely to resting HR.
+ * resting HR and temperature up, HRV moves inversely to resting HR, and a
+ * short night carries over into the next night's HRV.
  */
 function demoDay(date: string): DayRecord {
-  const rand = mulberry32(hashSeed(`oura-demo:${date}`));
-  const noise = () => rand() * 2 - 1;
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-  const weekend = dow === 0 || dow === 6;
-  const roughNight = rand() < 0.1;
+  const { sleepHours, roughNight, weekend, rand, noise } = demoNight(date);
+  const previous = new Date(`${date}T00:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  const carryover =
+    (demoNight(previous.toISOString().slice(0, 10)).sleepHours - 7.2) * 5;
 
-  const sleepHours = roughNight
-    ? 5.1 + rand() * 0.9
-    : 7.1 + (weekend ? 0.5 : 0) + noise() * 0.8;
   const sleep = clamp(Math.round(34 + sleepHours * 7 + noise() * 5), 40, 97);
   const readiness = clamp(
     Math.round(0.65 * sleep + 0.35 * 80 + noise() * 6 - (roughNight ? 7 : 0)),
@@ -84,7 +84,11 @@ function demoDay(date: string): DayRecord {
     44,
     66
   );
-  const hrv = clamp(Math.round(46 - (restingHr - 53) * 2.2 + noise() * 8), 18, 90);
+  const hrv = clamp(
+    Math.round(46 - (restingHr - 53) * 2.2 + carryover + noise() * 8),
+    18,
+    90
+  );
   const temperature = (roughNight ? 0.3 : 0) + noise() * 0.25;
 
   return {

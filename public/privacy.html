@@ -17,12 +17,17 @@
     exactly two people: the owner and their partner.</p>
     <ul>
       <li>It displays health summary data (readiness, sleep, and activity
-      scores and sleep duration) fetched from the owner's own Oura account
+      scores, sleep duration, resting heart rate, heart rate variability, and
+      body temperature deviation) fetched from the owner's own Oura account
       via the Oura API.</li>
       <li>Access is restricted to two named email addresses behind
       Cloudflare Access. No other person can view the data.</li>
-      <li>Data is cached briefly (up to 3 hours) to reduce API calls and is
-      not otherwise stored, archived, sold, or shared with anyone.</li>
+      <li>Data is cached briefly (up to 3 hours) to reduce API calls.</li>
+      <li>A daily history of those same fields, and the summaries computed
+      from it, is kept in the site's private Cloudflare storage so trends can
+      be compared over time. It remains there after the Oura account is
+      disconnected, until the owner deletes it.</li>
+      <li>Data is not sold or shared with anyone.</li>
       <li>No analytics, tracking, or advertising of any kind.</li>
     </ul>
     <p><a class="back-link" href="/">← Back to dashboard</a></p>

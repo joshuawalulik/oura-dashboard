@@ -9,6 +9,7 @@ import {
   computePatterns,
   MIN_BASELINE_DAYS,
 } from "../src/insights";
+import { mulberry32 } from "../src/prng";
 
 /** A DayRecord with nulls everywhere except the given fields. */
 function day(date: string, fields: Partial<DayRecord> = {}): DayRecord {
@@ -117,52 +118,107 @@ describe("computeBaselines", () => {
   });
 });
 
-describe("computePatterns: sleep length vs readiness", () => {
-  /** Perfectly correlated: long nights score high, short nights low. */
+/** Seeded standard normal noise, so "random" fixtures are repeatable. */
+function gaussian(seed: number): () => number {
+  const rand = mulberry32(seed);
+  return () =>
+    Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+}
+
+describe("computePatterns: sleep length vs next-night HRV", () => {
+  /** Long nights are followed by high HRV, short nights by low HRV. */
   function correlated(count: number, gaps: Set<number> = new Set()): DayRecord[] {
+    const longAt = (i: number) => i % 2 === 0 || i % 5 === 0;
     return datesEnding(LATEST, count).map((date, i) => {
       if (gaps.has(i)) return day(date); // a missing day: ring never synced
-      const long = i % 2 === 0;
       return day(date, {
-        total_sleep_seconds: (long ? 8 : 6) * 3600 + i * 60,
-        readiness: (long ? 85 : 65) + (i % 3),
+        total_sleep_seconds: (longAt(i) ? 8 : 6) * 3600 + i * 60,
+        average_hrv: i === 0 ? null : (longAt(i - 1) ? 50 : 38) + (i % 3),
       });
     });
   }
 
-  it("states the correlation via a median split with the night count", () => {
+  it("states the lagged correlation via a median split with the night count", () => {
     const sentences = computePatterns(correlated(40));
-    const sleepSentence = sentences.find((s) => s.includes("Nights longer than"));
+    const sleepSentence = sentences.find((s) => s.includes("After nights longer than"));
     expect(sleepSentence).toBeDefined();
-    expect(sleepSentence).toContain("higher readiness");
-    expect(sleepSentence).toContain("(40 nights)");
+    expect(sleepSentence).toContain("next night's HRV ran higher");
+    expect(sleepSentence).toContain(" ms ");
+    // 40 days give 39 consecutive pairs.
+    expect(sleepSentence).toContain("(39 nights)");
   });
 
-  it("counts only paired days when the window has missing days", () => {
-    // 10 of 40 days have no data at all: n must say 30, not 40.
-    const gaps = new Set([0, 3, 6, 9, 12, 15, 18, 21, 24, 27]);
-    const sentences = computePatterns(correlated(40, gaps));
-    const sleepSentence = sentences.find((s) => s.includes("Nights longer than"));
-    expect(sleepSentence).toContain("(30 nights)");
+  it("only pairs consecutive calendar days across a gap in the history", () => {
+    // Every third day missing: a pair needs days i and i+1 both present.
+    const gaps = new Set(Array.from({ length: 14 }, (_, n) => n * 3));
+    const present = correlated(42, gaps).filter((r) => r.total_sleep_seconds !== null);
+    const sentences = computePatterns(present);
+    const sleepSentence = sentences.find((s) => s.includes("After nights longer than"));
+    // 28 days remain in 14 runs of two: one pair per run, not 27.
+    expect(sleepSentence).toContain("(14 nights)");
   });
 
   it("stays silent below the minimum paired days", () => {
     // 40-day window but only 13 days carry data — under the 14-pair floor.
     const gaps = new Set(Array.from({ length: 27 }, (_, i) => i));
     const sentences = computePatterns(correlated(40, gaps));
-    expect(sentences.find((s) => s.includes("Nights longer than"))).toBeUndefined();
+    expect(sentences.find((s) => s.includes("After nights longer than"))).toBeUndefined();
   });
 
-  it("stays silent when sleep and readiness are uncorrelated", () => {
-    const history = datesEnding(LATEST, 40).map((date, i) =>
+  it("stays silent when sleep and the next night's HRV are unrelated", () => {
+    const noise = gaussian(7);
+    const history = datesEnding(LATEST, 60).map((date) =>
       day(date, {
-        // Sleep length cycles independently of readiness.
-        total_sleep_seconds: (6 + (i % 5)) * 3600,
-        readiness: 60 + ((i * 11) % 7),
+        total_sleep_seconds: Math.round(7 * 3600 + 2400 * noise()),
+        average_hrv: Math.round(45 + 8 * noise()),
       })
     );
     const sentences = computePatterns(history);
-    expect(sentences.find((s) => s.includes("Nights longer than"))).toBeUndefined();
+    expect(sentences.find((s) => s.includes("After nights longer than"))).toBeUndefined();
+  });
+
+  it("makes no claim from same-morning readiness, which contains the sleep", () => {
+    // Readiness tracks sleep perfectly, but nothing lagged or measured does.
+    const history = datesEnding(LATEST, 60).map((date, i) => {
+      const long = i % 2 === 0;
+      return day(date, {
+        total_sleep_seconds: (long ? 8 : 6) * 3600,
+        readiness: long ? 85 : 65,
+      });
+    });
+    const joined = computePatterns(history).join(" ");
+    expect(joined).not.toContain("nights longer than");
+  });
+});
+
+describe("computePatterns: must beat chance", () => {
+  it("rarely states a pattern from history with no real effect in it", () => {
+    // The weekday rule alone used to fire on about half of histories like these.
+    const runs = 200;
+    let fired = 0;
+    for (let seed = 1; seed <= runs; seed++) {
+      const noise = gaussian(seed);
+      const history = datesEnding(LATEST, 90).map((date) =>
+        day(date, {
+          readiness: Math.round(75 + 7 * noise()),
+          total_sleep_seconds: Math.round(7 * 3600 + 2400 * noise()),
+          average_hrv: Math.round(45 + 8 * noise()),
+        })
+      );
+      if (computePatterns(history).length > 0) fired++;
+    }
+    // Three tests at p < 0.01 predicts ~3%; 5% leaves room for sampling error.
+    expect(fired / runs).toBeLessThan(0.05);
+  });
+
+  it("is repeatable: the same history always gives the same sentences", () => {
+    const noise = gaussian(42);
+    const history = datesEnding(LATEST, 90).map((date) => {
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      return day(date, { readiness: Math.round((dow === 1 ? 62 : 78) + 6 * noise()) });
+    });
+    expect(computePatterns(history)).toEqual(computePatterns(history));
+    expect(computePatterns(history).join(" ")).toContain("Mondays");
   });
 });
 
@@ -188,9 +244,36 @@ describe("computePatterns: day-of-week and weekend effects", () => {
       return day(date, { total_sleep_seconds: 7 * 3600 + (weekend ? 45 * 60 : 0) });
     });
     const sentences = computePatterns(history);
-    const weekendSentence = sentences.find((s) => s.includes("weekend nights"));
+    const weekendSentence = sentences.find((s) => s.includes("Weekend nights"));
     expect(weekendSentence).toBeDefined();
     expect(weekendSentence).toContain("45 minutes longer");
+  });
+
+  it("addresses nobody: both viewers read the same sentences", () => {
+    // Everything fires here, so every sentence template gets checked.
+    const history = datesEnding(LATEST, 56).map((date, i) => {
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      const longAt = (n: number) => n % 2 === 0;
+      return day(date, {
+        readiness: dow === 1 ? 62 : 80,
+        total_sleep_seconds:
+          (longAt(i) ? 7.5 : 6.5) * 3600 + (dow === 0 || dow === 6 ? 2700 : 0),
+        average_hrv: longAt(i - 1) ? 50 : 38,
+      });
+    });
+    const sentences = computePatterns(history);
+    expect(sentences).toHaveLength(3);
+    for (const sentence of sentences) expect(sentence).not.toMatch(/\b(you|your)\b/i);
+  });
+
+  it("rolls 59.5+ minutes into the next hour instead of printing 60m", () => {
+    const history = datesEnding(LATEST, 56).map((date) => {
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      const weekend = dow === 0 || dow === 6;
+      return day(date, { total_sleep_seconds: weekend ? 8 * 3600 - 10 : 7 * 3600 });
+    });
+    const sentence = computePatterns(history).find((s) => s.includes("Weekend nights"));
+    expect(sentence).toContain("8h 00m");
   });
 
   it("returns an empty list for an empty or hopelessly sparse history", () => {

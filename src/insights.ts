@@ -5,6 +5,7 @@
  * and anything below its evidence threshold is simply omitted.
  */
 import type { DayRecord } from "./filter";
+import { mulberry32 } from "./prng";
 
 /** Metrics that get a rolling baseline. */
 export const BASELINE_METRICS = [
@@ -94,18 +95,34 @@ export function computeBaselines(
   return Object.keys(metrics).length > 0 ? { window_days: windowDays, metrics } : null;
 }
 
-/* ---- Patterns: 2–3 computed, honest sentences ---- */
+/* ---- Patterns: 2–3 computed, honest sentences ----
+ *
+ * A pattern has to clear two gates. Its effect must be big enough to matter
+ * (the MIN_* thresholds), and it must beat chance: shuffling the outcome
+ * across the same days has to almost never produce an effect that large. The
+ * size gates alone aren't enough. A best-minus-worst weekday gap, for one, is
+ * large on pure noise when each weekday only has a dozen samples.
+ */
 
 /** Minimum paired days before a correlation is worth a sentence. */
 export const MIN_PATTERN_DAYS = 14;
 /** |Pearson r| below this stays silent — no story in the noise. */
 const MIN_CORRELATION = 0.3;
-/** A readiness split under 2 points isn't a pattern worth stating. */
-const MIN_READINESS_GAP = 2;
+/** An HRV split under 2 ms isn't a pattern worth stating. */
+const MIN_HRV_GAP_MS = 2;
 /** Best-vs-worst weekday readiness gap worth mentioning. */
 const MIN_WEEKDAY_GAP = 5;
 /** Weekend-vs-weekday sleep difference worth mentioning (seconds). */
 const MIN_SLEEP_GAP_SECONDS = 20 * 60;
+/**
+ * Shuffles per pattern. This runs on every dashboard request, so it stays
+ * within the Workers CPU budget; 499 still resolves p-values to 0.002.
+ */
+const SHUFFLES = 499;
+/** Strict on purpose: several patterns get tried on every request. */
+const MAX_P = 0.01;
+/** Fixed so the same history always yields the same sentences. */
+const SHUFFLE_SEED = 0x5ca1ab1e;
 
 const DAY_NAMES = [
   "Sunday",
@@ -122,9 +139,37 @@ function dayOfWeek(isoDate: string): number {
 }
 
 function formatHours(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.round((seconds % 3600) / 60);
+  const totalMinutes = Math.round(seconds / 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+/**
+ * Permutation test: does `statistic` on the real ordering of `values` beat
+ * what shuffled orderings produce? `statistic` must be non-negative, with
+ * larger meaning a stronger effect. Stops as soon as the shuffles have tied
+ * or beaten it too often to pass, so weak candidates cost almost nothing.
+ */
+function beatsChance(
+  values: number[],
+  statistic: (ordering: Float64Array) => number
+): boolean {
+  const ordering = Float64Array.from(values);
+  const observed = statistic(ordering) - 1e-9; // ties count against the pattern
+  const allowed = Math.floor(MAX_P * (SHUFFLES + 1)) - 1;
+  const rand = mulberry32(SHUFFLE_SEED);
+  let asExtreme = 0;
+  for (let i = 0; i < SHUFFLES; i++) {
+    for (let j = ordering.length - 1; j > 0; j--) {
+      const k = Math.floor(rand() * (j + 1));
+      const swapped = ordering[j];
+      ordering[j] = ordering[k];
+      ordering[k] = swapped;
+    }
+    if (statistic(ordering) >= observed && ++asExtreme > allowed) return false;
+  }
+  return true;
 }
 
 function pearson(pairs: Array<[number, number]>): number {
@@ -150,11 +195,22 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** Sleep length vs that morning's readiness, phrased via a median split. */
-function sleepReadinessPattern(history: DayRecord[]): string | null {
-  const pairs = history
-    .filter((r) => r.total_sleep_seconds !== null && r.readiness !== null)
-    .map((r) => [r.total_sleep_seconds as number, r.readiness as number] as [number, number]);
+/**
+ * Sleep length vs the following night's HRV, phrased via a median split.
+ * Not vs readiness: Oura builds readiness partly from the night's sleep, so
+ * that correlation is largely baked in. HRV is measured, and the one-day lag
+ * keeps the night being judged out of the outcome. Pairs must be consecutive
+ * calendar days, so a gap in the history can't pair unrelated nights.
+ */
+function sleepRecoveryPattern(history: DayRecord[]): string | null {
+  const byDate = new Map(history.map((r) => [r.date, r]));
+  const pairs: Array<[number, number]> = [];
+  for (const r of history) {
+    const nextHrv = byDate.get(addDays(r.date, 1))?.average_hrv ?? null;
+    if (r.total_sleep_seconds !== null && nextHrv !== null) {
+      pairs.push([r.total_sleep_seconds, nextHrv]);
+    }
+  }
   if (pairs.length < MIN_PATTERN_DAYS) return null;
 
   const r = pearson(pairs);
@@ -166,25 +222,40 @@ function sleepReadinessPattern(history: DayRecord[]): string | null {
   if (longer.length < 5 || shorter.length < 5) return null;
   const gap = meanOf(longer) - meanOf(shorter);
   // The split must tell the same story as the correlation, or say nothing.
-  if (Math.abs(gap) < MIN_READINESS_GAP || Math.sign(gap) !== Math.sign(r)) {
+  if (Math.abs(gap) < MIN_HRV_GAP_MS || Math.sign(gap) !== Math.sign(r)) {
     return null;
   }
+
+  // Shuffling HRV keeps its mean and spread, so of Pearson's r only the
+  // covariance term changes: this sum ranks orderings exactly as |r| would.
+  const sleepMean = meanOf(pairs.map((p) => p[0]));
+  const weights = pairs.map((p) => p[0] - sleepMean);
+  const covariance = (hrv: Float64Array) => {
+    let sum = 0;
+    for (let i = 0; i < hrv.length; i++) sum += weights[i] * hrv[i];
+    return Math.abs(sum);
+  };
+  if (!beatsChance(pairs.map((p) => p[1]), covariance)) return null;
 
   const a = Math.round(meanOf(longer));
   const b = Math.round(meanOf(shorter));
   const direction = gap > 0 ? "higher" : "lower";
   return (
-    `Nights longer than ${formatHours(cut)} were followed by ${direction} readiness — ` +
-    `averaging ${a} vs ${b} after shorter nights (${pairs.length} nights).`
+    `After nights longer than ${formatHours(cut)}, the next night's HRV ran ${direction} — ` +
+    `averaging ${a} vs ${b} ms after shorter nights (${pairs.length} nights).`
   );
 }
 
-/** Best/worst weekday for readiness, if the spread is real. */
+/** Best/worst weekday for readiness, if the spread beats chance. */
 function weekdayReadinessPattern(history: DayRecord[]): string | null {
+  const days: number[] = [];
+  const scores: number[] = [];
   const byDay = new Map<number, number[]>();
   for (const r of history) {
     if (r.readiness === null) continue;
     const dow = dayOfWeek(r.date);
+    days.push(dow);
+    scores.push(r.readiness);
     byDay.set(dow, [...(byDay.get(dow) ?? []), r.readiness]);
   }
   const qualified = [...byDay.entries()].filter(([, v]) => v.length >= 3);
@@ -196,30 +267,65 @@ function weekdayReadinessPattern(history: DayRecord[]): string | null {
   const best = means[means.length - 1];
   if (best.mean - worst.mean < MIN_WEEKDAY_GAP) return null;
 
+  const counted = qualified.map(([dow]) => dow);
+  const counts = new Float64Array(7);
+  for (const dow of days) counts[dow]++;
+  const sums = new Float64Array(7);
+  const spread = (ordering: Float64Array) => {
+    sums.fill(0);
+    for (let i = 0; i < ordering.length; i++) sums[days[i]] += ordering[i];
+    let low = Infinity;
+    let high = -Infinity;
+    for (const dow of counted) {
+      const mean = sums[dow] / counts[dow];
+      if (mean < low) low = mean;
+      if (mean > high) high = mean;
+    }
+    return high - low;
+  };
+  if (!beatsChance(scores, spread)) return null;
+
   return (
     `Readiness runs lowest on ${DAY_NAMES[worst.dow]}s (avg ${Math.round(worst.mean)}) ` +
     `and highest on ${DAY_NAMES[best.dow]}s (avg ${Math.round(best.mean)}).`
   );
 }
 
-/** Weekend vs weekday sleep length, if the gap is at least ~20 minutes. */
+/**
+ * Weekend vs weekday sleep length, if the gap is at least ~20 minutes.
+ * Worded without "you": both people read this, and it's only one's sleep.
+ */
 function weekendSleepPattern(history: DayRecord[]): string | null {
-  const weekend: number[] = [];
-  const weekday: number[] = [];
+  const flags: boolean[] = [];
+  const seconds: number[] = [];
   for (const r of history) {
     if (r.total_sleep_seconds === null) continue;
     const dow = dayOfWeek(r.date);
-    (dow === 0 || dow === 6 ? weekend : weekday).push(r.total_sleep_seconds);
+    flags.push(dow === 0 || dow === 6);
+    seconds.push(r.total_sleep_seconds);
   }
+  const weekend = seconds.filter((_, i) => flags[i]);
+  const weekday = seconds.filter((_, i) => !flags[i]);
   if (weekend.length < 8 || weekday.length < 16) return null;
 
   const gap = meanOf(weekend) - meanOf(weekday);
   if (Math.abs(gap) < MIN_SLEEP_GAP_SECONDS) return null;
 
+  const meanGap = (ordering: Float64Array) => {
+    let weekendSum = 0;
+    let weekdaySum = 0;
+    for (let i = 0; i < ordering.length; i++) {
+      if (flags[i]) weekendSum += ordering[i];
+      else weekdaySum += ordering[i];
+    }
+    return Math.abs(weekendSum / weekend.length - weekdaySum / weekday.length);
+  };
+  if (!beatsChance(seconds, meanGap)) return null;
+
   const minutes = Math.round(Math.abs(gap) / 60 / 5) * 5;
   const direction = gap > 0 ? "longer" : "shorter";
   return (
-    `You sleep about ${minutes} minutes ${direction} on weekend nights ` +
+    `Weekend nights run about ${minutes} minutes ${direction} than weeknights ` +
     `(${formatHours(meanOf(weekend))} vs ${formatHours(meanOf(weekday))}).`
   );
 }
@@ -230,7 +336,7 @@ function weekendSleepPattern(history: DayRecord[]): string | null {
  */
 export function computePatterns(history: DayRecord[]): string[] {
   return [
-    sleepReadinessPattern(history),
+    sleepRecoveryPattern(history),
     weekdayReadinessPattern(history),
     weekendSleepPattern(history),
   ].filter((s): s is string => s !== null);
