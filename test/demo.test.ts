@@ -46,6 +46,7 @@ describe("demo API", () => {
       expect(typeof stat.sd).toBe("number");
       expect(typeof stat.z).toBe("number");
     }
+    expect(typeof body.seven_day_deltas).toBe("object");
     expect(Array.isArray(body.patterns)).toBe(true);
     for (const pattern of body.patterns) {
       expect(typeof pattern.sentence).toBe("string");

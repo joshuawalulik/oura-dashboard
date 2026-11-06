@@ -340,6 +340,41 @@ describe("/api/dashboard", () => {
   });
 });
 
+describe("/api date windows", () => {
+  const isoDaysAgo = (days: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  async function historyEndingWithDataOn(day: string) {
+    await connectTokens();
+    ouraGet("/v2/usercollection/daily_readiness", {
+      data: [{ day, score: 80 }],
+      next_token: null,
+    });
+    for (const path of ["daily_sleep", "daily_activity", "sleep"]) {
+      ouraGet(`/v2/usercollection/${path}`, { data: [], next_token: null });
+    }
+    const res = await SELF.fetch("https://dashboard.test/api/history?days=7", {
+      headers: { "Cf-Access-Jwt-Assertion": ownerJwt },
+    });
+    return ((await res.json()) as { data: Array<{ date: string }> }).data;
+  }
+
+  it("ends on the latest day with data when UTC is already on the next day", async () => {
+    const data = await historyEndingWithDataOn(isoDaysAgo(1));
+    expect(data).toHaveLength(7);
+    expect(data[6].date).toBe(isoDaysAgo(1));
+  });
+
+  it("keeps a real gap: more than one empty day isn't the clock's doing", async () => {
+    const data = await historyEndingWithDataOn(isoDaysAgo(3));
+    expect(data).toHaveLength(7);
+    expect(data[6].date).toBe(isoDaysAgo(1));
+  });
+});
+
 describe("/api data routes", () => {
   it("returns 409 not_connected when Oura is not linked", async () => {
     const res = await SELF.fetch("https://dashboard.test/api/summary", {

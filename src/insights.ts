@@ -95,6 +95,35 @@ export function computeBaselines(
   return Object.keys(metrics).length > 0 ? { window_days: windowDays, metrics } : null;
 }
 
+/* ---- 7-day deltas: the latest score against the week before it ---- */
+
+const DELTA_METRICS = ["readiness", "sleep", "activity"] as const;
+export type SevenDayDeltas = Partial<Record<(typeof DELTA_METRICS)[number], number>>;
+/** Two days aren't an average worth comparing against. */
+const MIN_DELTA_DAYS = 3;
+
+/**
+ * The latest score minus the mean of the seven calendar days before it. Always
+ * those seven days, whatever chart range is on screen; a metric with too few
+ * of them is left out.
+ */
+export function computeSevenDayDeltas(
+  history: DayRecord[],
+  latest: DayRecord | null
+): SevenDayDeltas {
+  const deltas: SevenDayDeltas = {};
+  if (!latest) return deltas;
+  const start = addDays(latest.date, -7);
+  const prior = history.filter((r) => r.date >= start && r.date < latest.date);
+  for (const metric of DELTA_METRICS) {
+    const score = latest[metric];
+    const values = prior.map((r) => r[metric]).filter((v): v is number => v !== null);
+    if (score === null || values.length < MIN_DELTA_DAYS) continue;
+    deltas[metric] = Math.round(score - meanOf(values));
+  }
+  return deltas;
+}
+
 /* ---- Readiness inputs: which contributors sit low today ---- */
 
 /** Below this a contributor counts as low, matching the dial's "Low" word. */

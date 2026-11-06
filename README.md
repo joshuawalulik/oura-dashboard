@@ -118,7 +118,7 @@ layer and the owner/viewer authorization split on top of it.
 
 ## Testing & CI/CD
 
-111 tests run in the real Workers runtime via
+117 tests run in the real Workers runtime via
 `@cloudflare/vitest-pool-workers` — JWT verification against generated RSA
 keys, token refresh/rotation, field-allowlist leak checks, D1 ingest
 idempotency against the checked-in migrations, baseline/correlation math

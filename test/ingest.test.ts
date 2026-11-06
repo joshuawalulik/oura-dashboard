@@ -374,6 +374,7 @@ describe("/api/dashboard insights", () => {
     expect(typeof readiness.z).toBe("number");
     // Today's 91 sits well above the seeded ~70 mean.
     expect(readiness.z).toBeGreaterThan(1);
+    expect(body.seven_day_deltas.readiness).toBeGreaterThan(5);
 
     const found = body.patterns.filter((p: any) => p.status === "found");
     expect(found.length).toBeGreaterThanOrEqual(2);
@@ -429,6 +430,7 @@ describe("/api/dashboard insights", () => {
     const body = (await res.json()) as Record<string, any>;
     expect(body.connected).toBe(true);
     expect(body.baselines).toBeNull();
+    expect(body.seven_day_deltas).toEqual({});
     expect(body.patterns).toEqual([]);
   });
 });
