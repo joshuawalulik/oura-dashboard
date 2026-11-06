@@ -151,14 +151,16 @@
       </div>
     </section>
 
-    <!-- Patterns: sentences computed from the stored day history. The whole
-         section stays hidden until the data has earned something to say. -->
+    <!-- Patterns: results computed from the stored day history, each with its
+         working. The section stays hidden until there's enough data to test. -->
     <section id="patterns" aria-label="Patterns" hidden>
       <div class="trends-header">
         <h2>Patterns</h2>
       </div>
       <div class="chart-box patterns-box">
-        <ul class="patterns-list" id="patterns-list"></ul>
+        <ul class="patterns-list" id="patterns-list" hidden></ul>
+        <h3 class="patterns-subhead" id="patterns-none-title" hidden>Tested, no clear link</h3>
+        <ul class="patterns-list patterns-list--none" id="patterns-none" hidden></ul>
       </div>
     </section>
   </main>

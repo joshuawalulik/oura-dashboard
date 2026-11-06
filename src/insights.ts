@@ -127,7 +127,21 @@ export function lowestReadinessInputs(
  * across the same days has to almost never produce an effect that large. The
  * size gates alone aren't enough. A best-minus-worst weekday gap, for one, is
  * large on pure noise when each weekday only has a dozen samples.
+ *
+ * Every pattern with enough data to test reports its working, whether or not
+ * it passed: a tested "no clear link" is a result too. Too little data to
+ * test at all still means saying nothing.
  */
+
+export type PatternStatus = "found" | "no_link";
+
+export interface PatternResult {
+  id: string;
+  status: PatternStatus;
+  sentence: string;
+  /** Label/value rows behind the sentence, in reading order. */
+  math: Array<{ label: string; value: string }>;
+}
 
 /** Minimum paired days before a correlation is worth a sentence. */
 export const MIN_PATTERN_DAYS = 14;
@@ -140,11 +154,11 @@ const MIN_WEEKDAY_GAP = 5;
 /** Weekend-vs-weekday sleep difference worth mentioning (seconds). */
 const MIN_SLEEP_GAP_SECONDS = 20 * 60;
 /**
- * Shuffles per pattern. This runs on every dashboard request, so it stays
- * within the Workers CPU budget; 499 still resolves p-values to 0.002.
+ * Shuffles per pattern. This runs inside the ingest, so it stays within the
+ * Workers CPU budget; 499 still resolves p-values to 0.002.
  */
 const SHUFFLES = 499;
-/** Strict on purpose: several patterns get tried on every request. */
+/** Strict on purpose: several patterns get tried on every run. */
 const MAX_P = 0.01;
 /** Fixed so the same history always yields the same sentences. */
 const SHUFFLE_SEED = 0x5ca1ab1e;
@@ -178,16 +192,22 @@ function formatHours(seconds: number): string {
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
+interface ShuffleResult {
+  passed: boolean;
+  /** Shuffles that tied or beat the real ordering, when all of them ran. */
+  matched: number | null;
+}
+
 /**
  * Permutation test: does `statistic` on the real ordering of `values` beat
  * what shuffled orderings produce? `statistic` must be non-negative, with
  * larger meaning a stronger effect. Stops as soon as the shuffles have tied
  * or beaten it too often to pass, so weak candidates cost almost nothing.
  */
-function beatsChance(
+function shuffleTest(
   values: number[],
   statistic: (ordering: Float64Array) => number
-): boolean {
+): ShuffleResult {
   const ordering = Float64Array.from(values);
   const observed = statistic(ordering) - 1e-9; // ties count against the pattern
   const allowed = Math.floor(MAX_P * (SHUFFLES + 1)) - 1;
@@ -200,9 +220,26 @@ function beatsChance(
       ordering[j] = ordering[k];
       ordering[k] = swapped;
     }
-    if (statistic(ordering) >= observed && ++asExtreme > allowed) return false;
+    if (statistic(ordering) >= observed && ++asExtreme > allowed) {
+      return { passed: false, matched: null };
+    }
   }
-  return true;
+  return { passed: true, matched: asExtreme };
+}
+
+/** The shuffle row: `null` means the effect never reached the test. */
+function shuffleRow(shuffle: ShuffleResult | null): { label: string; value: string } {
+  const label = "Shuffle test";
+  if (!shuffle) return { label, value: "Not run: the effect was under the minimum" };
+  if (!shuffle.passed) {
+    return { label, value: `Too many shuffles matched it, so p is above ${MAX_P}` };
+  }
+  const matched = shuffle.matched as number;
+  const p = (matched + 1) / (SHUFFLES + 1);
+  return {
+    label,
+    value: `${matched} of ${SHUFFLES} shuffles matched it (p = ${p.toFixed(3)}, needs ${MAX_P} or less)`,
+  };
 }
 
 function pearson(pairs: Array<[number, number]>): number {
@@ -228,33 +265,42 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** A correlation restated as a median split, once it has passed every gate. */
-interface SplitEffect {
+/** [cause, HRV] pairs measured, then tested once the effect is big enough. */
+interface HrvSplit {
+  pairs: number;
+  r: number;
   cut: number;
   /** Mean outcome on days above the cut, then at or below it. */
   above: number;
   below: number;
-  pairs: number;
+  shuffle: ShuffleResult | null;
 }
 
 /**
  * Tests [cause, HRV] pairs: a large enough correlation, a median split that
- * tells the same story by at least MIN_HRV_GAP_MS, and a shuffle test.
+ * tells the same story by at least MIN_HRV_GAP_MS, and a shuffle test. Returns
+ * null only when there's too little data to test at all.
  */
-function hrvSplit(pairs: Array<[number, number]>): SplitEffect | null {
+function hrvSplit(pairs: Array<[number, number]>): HrvSplit | null {
   if (pairs.length < MIN_PATTERN_DAYS) return null;
 
   const r = pearson(pairs);
-  if (Math.abs(r) < MIN_CORRELATION) return null;
-
   const cut = median(pairs.map((p) => p[0]));
-  const above = pairs.filter((p) => p[0] > cut).map((p) => p[1]);
-  const below = pairs.filter((p) => p[0] <= cut).map((p) => p[1]);
-  if (above.length < 5 || below.length < 5) return null;
-  const gap = meanOf(above) - meanOf(below);
+  const aboveCut = pairs.filter((p) => p[0] > cut).map((p) => p[1]);
+  const belowCut = pairs.filter((p) => p[0] <= cut).map((p) => p[1]);
+  if (aboveCut.length < 5 || belowCut.length < 5) return null;
+  const above = meanOf(aboveCut);
+  const below = meanOf(belowCut);
+  const gap = above - below;
+  const split = { pairs: pairs.length, r, cut, above, below };
+
   // The split must tell the same story as the correlation, or say nothing.
-  if (Math.abs(gap) < MIN_HRV_GAP_MS || Math.sign(gap) !== Math.sign(r)) {
-    return null;
+  if (
+    Math.abs(r) < MIN_CORRELATION ||
+    Math.abs(gap) < MIN_HRV_GAP_MS ||
+    Math.sign(gap) !== Math.sign(r)
+  ) {
+    return { ...split, shuffle: null };
   }
 
   // Shuffling HRV keeps its mean and spread, so of Pearson's r only the
@@ -266,9 +312,20 @@ function hrvSplit(pairs: Array<[number, number]>): SplitEffect | null {
     for (let i = 0; i < hrv.length; i++) sum += weights[i] * hrv[i];
     return Math.abs(sum);
   };
-  if (!beatsChance(pairs.map((p) => p[1]), covariance)) return null;
+  return { ...split, shuffle: shuffleTest(pairs.map((p) => p[1]), covariance) };
+}
 
-  return { cut, above: meanOf(above), below: meanOf(below), pairs: pairs.length };
+function hrvSplitMath(effect: HrvSplit, cutLabel: string): PatternResult["math"] {
+  const gap = Math.abs(effect.above - effect.below).toFixed(1);
+  return [
+    { label: "Compared", value: `${effect.pairs} nights, split at ${cutLabel}` },
+    { label: "Effect", value: `${gap} ms gap, correlation ${effect.r.toFixed(2)}` },
+    {
+      label: "Minimum",
+      value: `${MIN_HRV_GAP_MS} ms gap and correlation ${MIN_CORRELATION.toFixed(2)}`,
+    },
+    shuffleRow(effect.shuffle),
+  ];
 }
 
 /**
@@ -278,7 +335,7 @@ function hrvSplit(pairs: Array<[number, number]>): SplitEffect | null {
  * keeps the night being judged out of the outcome. Pairs must be consecutive
  * calendar days, so a gap in the history can't pair unrelated nights.
  */
-function sleepRecoveryPattern(history: DayRecord[]): string | null {
+function sleepRecoveryPattern(history: DayRecord[]): PatternResult | null {
   const byDate = new Map(history.map((r) => [r.date, r]));
   const pairs: Array<[number, number]> = [];
   for (const r of history) {
@@ -290,32 +347,60 @@ function sleepRecoveryPattern(history: DayRecord[]): string | null {
   const effect = hrvSplit(pairs);
   if (!effect) return null;
 
+  const math = hrvSplitMath(effect, formatHours(effect.cut));
+  const id = "sleep_next_hrv";
+  if (!effect.shuffle?.passed) {
+    return {
+      id,
+      status: "no_link",
+      sentence: `No clear link between sleep length and the next night's HRV (${effect.pairs} nights).`,
+      math,
+    };
+  }
   const direction = effect.above > effect.below ? "higher" : "lower";
-  return (
-    `After nights longer than ${formatHours(effect.cut)}, the next night's HRV ran ${direction} — ` +
-    `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
-    `after shorter nights (${effect.pairs} nights).`
-  );
+  return {
+    id,
+    status: "found",
+    sentence:
+      `After nights longer than ${formatHours(effect.cut)}, the next night's HRV ran ${direction} — ` +
+      `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
+      `after shorter nights (${effect.pairs} nights).`,
+    math,
+  };
 }
 
 /** Bedtime vs HRV across that same night, which bedtime comes before. */
-function bedtimeRecoveryPattern(history: DayRecord[]): string | null {
+function bedtimeRecoveryPattern(history: DayRecord[]): PatternResult | null {
   const pairs = history
     .filter((r) => r.bedtime_minutes !== null && r.average_hrv !== null)
     .map((r) => [r.bedtime_minutes, r.average_hrv] as [number, number]);
   const effect = hrvSplit(pairs);
   if (!effect) return null;
 
+  const math = hrvSplitMath(effect, formatClock(effect.cut));
+  const id = "bedtime_hrv";
+  if (!effect.shuffle?.passed) {
+    return {
+      id,
+      status: "no_link",
+      sentence: `No clear link between bedtime and that night's HRV (${effect.pairs} nights).`,
+      math,
+    };
+  }
   const direction = effect.above > effect.below ? "higher" : "lower";
-  return (
-    `Nights starting after ${formatClock(effect.cut)} ran ${direction} HRV — ` +
-    `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
-    `on earlier nights (${effect.pairs} nights).`
-  );
+  return {
+    id,
+    status: "found",
+    sentence:
+      `Nights starting after ${formatClock(effect.cut)} ran ${direction} HRV — ` +
+      `averaging ${Math.round(effect.above)} vs ${Math.round(effect.below)} ms ` +
+      `on earlier nights (${effect.pairs} nights).`,
+    math,
+  };
 }
 
 /** Best/worst weekday for readiness, if the spread beats chance. */
-function weekdayReadinessPattern(history: DayRecord[]): string | null {
+function weekdayReadinessPattern(history: DayRecord[]): PatternResult | null {
   const days: number[] = [];
   const scores: number[] = [];
   const byDay = new Map<number, number[]>();
@@ -333,7 +418,7 @@ function weekdayReadinessPattern(history: DayRecord[]): string | null {
   means.sort((a, b) => a.mean - b.mean);
   const worst = means[0];
   const best = means[means.length - 1];
-  if (best.mean - worst.mean < MIN_WEEKDAY_GAP) return null;
+  const gap = best.mean - worst.mean;
 
   const counted = qualified.map(([dow]) => dow);
   const counts = new Float64Array(7);
@@ -351,19 +436,41 @@ function weekdayReadinessPattern(history: DayRecord[]): string | null {
     }
     return high - low;
   };
-  if (!beatsChance(scores, spread)) return null;
+  const shuffle = gap < MIN_WEEKDAY_GAP ? null : shuffleTest(scores, spread);
 
-  return (
-    `Readiness runs lowest on ${DAY_NAMES[worst.dow]}s (avg ${Math.round(worst.mean)}) ` +
-    `and highest on ${DAY_NAMES[best.dow]}s (avg ${Math.round(best.mean)}).`
-  );
+  const math = [
+    { label: "Compared", value: `${scores.length} days across ${counted.length} weekdays` },
+    {
+      label: "Effect",
+      value: `${gap.toFixed(1)} points, ${DAY_NAMES[best.dow]}s over ${DAY_NAMES[worst.dow]}s`,
+    },
+    { label: "Minimum", value: `${MIN_WEEKDAY_GAP} points` },
+    shuffleRow(shuffle),
+  ];
+  const id = "weekday_readiness";
+  if (!shuffle?.passed) {
+    return {
+      id,
+      status: "no_link",
+      sentence: `No clear weekday pattern in readiness (${scores.length} days).`,
+      math,
+    };
+  }
+  return {
+    id,
+    status: "found",
+    sentence:
+      `Readiness runs lowest on ${DAY_NAMES[worst.dow]}s (avg ${Math.round(worst.mean)}) ` +
+      `and highest on ${DAY_NAMES[best.dow]}s (avg ${Math.round(best.mean)}).`,
+    math,
+  };
 }
 
 /**
  * Weekend vs weekday sleep length, if the gap is at least ~20 minutes.
  * Worded without "you": both people read this, and it's only one's sleep.
  */
-function weekendSleepPattern(history: DayRecord[]): string | null {
+function weekendSleepPattern(history: DayRecord[]): PatternResult | null {
   const flags: boolean[] = [];
   const seconds: number[] = [];
   for (const r of history) {
@@ -377,8 +484,6 @@ function weekendSleepPattern(history: DayRecord[]): string | null {
   if (weekend.length < 8 || weekday.length < 16) return null;
 
   const gap = meanOf(weekend) - meanOf(weekday);
-  if (Math.abs(gap) < MIN_SLEEP_GAP_SECONDS) return null;
-
   const meanGap = (ordering: Float64Array) => {
     let weekendSum = 0;
     let weekdaySum = 0;
@@ -388,25 +493,48 @@ function weekendSleepPattern(history: DayRecord[]): string | null {
     }
     return Math.abs(weekendSum / weekend.length - weekdaySum / weekday.length);
   };
-  if (!beatsChance(seconds, meanGap)) return null;
+  const shuffle =
+    Math.abs(gap) < MIN_SLEEP_GAP_SECONDS ? null : shuffleTest(seconds, meanGap);
 
+  const math = [
+    {
+      label: "Compared",
+      value: `${weekend.length} weekend and ${weekday.length} weekday nights`,
+    },
+    { label: "Effect", value: `${Math.round(Math.abs(gap) / 60)} minutes` },
+    { label: "Minimum", value: `${MIN_SLEEP_GAP_SECONDS / 60} minutes` },
+    shuffleRow(shuffle),
+  ];
+  const id = "weekend_sleep";
+  if (!shuffle?.passed) {
+    return {
+      id,
+      status: "no_link",
+      sentence: `No clear weekend difference in sleep length (${seconds.length} nights).`,
+      math,
+    };
+  }
   const minutes = Math.round(Math.abs(gap) / 60 / 5) * 5;
   const direction = gap > 0 ? "longer" : "shorter";
-  return (
-    `Weekend nights run about ${minutes} minutes ${direction} than weeknights ` +
-    `(${formatHours(meanOf(weekend))} vs ${formatHours(meanOf(weekday))}).`
-  );
+  return {
+    id,
+    status: "found",
+    sentence:
+      `Weekend nights run about ${minutes} minutes ${direction} than weeknights ` +
+      `(${formatHours(meanOf(weekend))} vs ${formatHours(meanOf(weekday))}).`,
+    math,
+  };
 }
 
 /**
- * Up to four sentences, each earned by its own evidence threshold. An empty
- * array means the panel is hidden entirely — never filler, never guesses.
+ * One result per pattern that had enough data to test, found or not. An empty
+ * array means nothing could be tested, so the panel is hidden: never filler.
  */
-export function computePatterns(history: DayRecord[]): string[] {
+export function computePatterns(history: DayRecord[]): PatternResult[] {
   return [
     sleepRecoveryPattern(history),
     bedtimeRecoveryPattern(history),
     weekdayReadinessPattern(history),
     weekendSleepPattern(history),
-  ].filter((s): s is string => s !== null);
+  ].filter((p): p is PatternResult => p !== null);
 }

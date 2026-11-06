@@ -35,8 +35,9 @@ two email addresses.
   norm") — something the Oura app itself doesn't show
 - A Patterns panel with computed, honest sentences (sleep length and bedtime
   vs HRV, day-of-week effects), recomputed nightly over up to a year of
-  history. Each one has to beat a seeded shuffle test at p < 0.01, or it
-  doesn't appear: no LLM, no fabrication
+  history. Each claim has to beat a seeded shuffle test at p ≤ 0.01, every
+  result can show its math, and tested ideas with no clear link are listed
+  too: no LLM, no fabrication
 - Names the readiness contributors sitting low today, without guessing at
   Oura's unpublished weights
 - Pulls from the Oura API v2 over OAuth2, with automatic access-token refresh
@@ -117,7 +118,7 @@ layer and the owner/viewer authorization split on top of it.
 
 ## Testing & CI/CD
 
-104 tests run in the real Workers runtime via
+111 tests run in the real Workers runtime via
 `@cloudflare/vitest-pool-workers` — JWT verification against generated RSA
 keys, token refresh/rotation, field-allowlist leak checks, D1 ingest
 idempotency against the checked-in migrations, baseline/correlation math

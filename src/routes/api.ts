@@ -29,6 +29,7 @@ import {
   computeBaselines,
   lowestReadinessInputs,
   type Baselines,
+  type PatternResult,
 } from "../insights";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
@@ -119,8 +120,8 @@ async function loadHistory(
 async function loadInsights(
   env: Env,
   latest: DayRecord | null
-): Promise<{ baselines: Baselines | null; patterns: string[] }> {
-  const none = { baselines: null, patterns: [] as string[] };
+): Promise<{ baselines: Baselines | null; patterns: PatternResult[] }> {
+  const none = { baselines: null, patterns: [] as PatternResult[] };
   if (!latest || !env.OURA_DB) return none;
   try {
     const start = new Date(`${latest.date}T00:00:00Z`);

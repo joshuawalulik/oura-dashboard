@@ -11,7 +11,7 @@ import {
   filterSleepPeriodDocs,
   mergeHistory,
 } from "./filter";
-import { computePatterns } from "./insights";
+import { computePatterns, type PatternResult } from "./insights";
 import { readDays, upsertDays } from "./store";
 import type { Env } from "./types";
 
@@ -40,10 +40,18 @@ async function refreshPatterns(env: Env, end: string, now: Date): Promise<void> 
   await env.OURA_KV.put(PATTERNS_KV_KEY, JSON.stringify(computePatterns(rows)));
 }
 
-/** The sentences from the last ingest; empty until one has run. */
-export async function readStoredPatterns(env: Env): Promise<string[]> {
+/**
+ * The results from the last ingest; empty until one has run. Entries saved
+ * as plain sentences by an older build are skipped until the next ingest
+ * replaces them.
+ */
+export async function readStoredPatterns(env: Env): Promise<PatternResult[]> {
   const raw = await env.OURA_KV.get(PATTERNS_KV_KEY);
-  return raw ? (JSON.parse(raw) as string[]) : [];
+  if (!raw) return [];
+  const stored = JSON.parse(raw) as unknown[];
+  return stored.filter(
+    (entry): entry is PatternResult => typeof entry === "object" && entry !== null
+  );
 }
 
 /**
