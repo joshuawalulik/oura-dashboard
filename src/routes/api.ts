@@ -27,9 +27,11 @@ import { readDays } from "../store";
 import {
   BASELINE_WINDOW_DAYS,
   computeBaselines,
+  computeSevenDayDeltas,
   lowestReadinessInputs,
   type Baselines,
   type PatternResult,
+  type SevenDayDeltas,
 } from "../insights";
 
 const CACHE_TTL_SECONDS = 3 * 60 * 60;
@@ -37,19 +39,28 @@ const CACHE_TTL_SECONDS = 3 * 60 * 60;
 // older build would otherwise serve without the new fields for up to 3h.
 const CACHE_VERSION = "v3";
 const LAST_SYNC_KV_KEY = "last_sync";
+/**
+ * Empty days a window may drop from its end: the lookahead day, plus UTC-today
+ * while it's still yesterday for the viewer or the ring hasn't synced. A day
+ * further back stays, because that's a real gap in the data.
+ */
+const MAX_TRAILING_EMPTY_DAYS = 2;
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * The Worker doesn't know the viewer's time zone, so the range runs from one
+ * day ahead of UTC-today (for zones ahead of UTC; daily endpoints treat
+ * end_date as inclusive) and starts early enough to survive trimming.
+ */
 function dateRange(days: number): { start: string; end: string } {
   const now = new Date();
-  // End one day ahead of UTC-today so time zones ahead of UTC still get
-  // "today" (daily endpoints treat end_date as inclusive; extra day is empty).
   const end = new Date(now);
   end.setUTCDate(end.getUTCDate() + 1);
   const start = new Date(now);
-  start.setUTCDate(start.getUTCDate() - (days - 1));
+  start.setUTCDate(start.getUTCDate() - (days - 1) - MAX_TRAILING_EMPTY_DAYS);
   return { start: isoDate(start), end: isoDate(end) };
 }
 
@@ -101,12 +112,15 @@ async function loadHistory(
     cachedCollection<ScoreDoc>(env, "daily_activity", start, end, filterScoreDocs, bypassCache),
     cachedCollection<SleepPeriodDoc>(env, "sleep", start, end, filterSleepPeriodDocs, bypassCache),
   ]);
-  // Trim the lookahead day off the displayed range unless it has data.
   const merged = mergeHistory(start, end, readiness, sleep, activity, sleepPeriods);
-  const last = merged[merged.length - 1];
-  const hasData = last && hasAnyData(last);
-  const history = hasData ? merged.slice(merged.length - days) : merged.slice(0, -1).slice(-days);
-  return { history, readiness };
+  let windowEnd = merged.length;
+  while (
+    windowEnd > merged.length - MAX_TRAILING_EMPTY_DAYS &&
+    !hasAnyData(merged[windowEnd - 1])
+  ) {
+    windowEnd--;
+  }
+  return { history: merged.slice(0, windowEnd).slice(-days), readiness };
 }
 
 /**
@@ -120,8 +134,12 @@ async function loadHistory(
 async function loadInsights(
   env: Env,
   latest: DayRecord | null
-): Promise<{ baselines: Baselines | null; patterns: PatternResult[] }> {
-  const none = { baselines: null, patterns: [] as PatternResult[] };
+): Promise<{
+  baselines: Baselines | null;
+  seven_day_deltas: SevenDayDeltas;
+  patterns: PatternResult[];
+}> {
+  const none = { baselines: null, seven_day_deltas: {}, patterns: [] as PatternResult[] };
   if (!latest || !env.OURA_DB) return none;
   try {
     const start = new Date(`${latest.date}T00:00:00Z`);
@@ -130,7 +148,11 @@ async function loadInsights(
       readDays(env.OURA_DB, isoDate(start), latest.date),
       readStoredPatterns(env),
     ]);
-    return { baselines: computeBaselines(rows, latest), patterns };
+    return {
+      baselines: computeBaselines(rows, latest),
+      seven_day_deltas: computeSevenDayDeltas(rows, latest),
+      patterns,
+    };
   } catch (err) {
     console.error("insights_error", err instanceof Error ? err.message : "unknown");
     return none;
@@ -189,6 +211,7 @@ apiRoutes.get("/dashboard", async (c) => {
       summary: latest ?? { date: null },
       history: { days, data: history },
       baselines: insights.baselines,
+      seven_day_deltas: insights.seven_day_deltas,
       patterns: insights.patterns,
       lowest_readiness_inputs: lowestReadinessInputs(latestReadiness?.contributors),
     });

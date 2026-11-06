@@ -28,16 +28,13 @@
   const prefersReducedMotion = () =>
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* Delta vs the trailing 7-day average: today's score against the mean of
-     the (up to) seven days before it. Omitted when fewer than 3 of those
-     days have data — a two-point average is noise, not a baseline. */
-  function sevenDayDelta(history, metric, latest) {
-    if (!history || !latest || latest[metric] == null) return null;
-    const prior = history.filter((r) => r.date < latest.date).slice(-7);
-    const values = prior.map((r) => r[metric]).filter((v) => v != null);
-    if (values.length < 3) return null;
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    return Math.round(latest[metric] - mean);
+  /* The viewer's calendar date. toISOString would give the UTC date, which
+     rolls over during the evening in the Americas. */
+  function localIsoDate() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${month}-${day}`;
   }
 
   function deltaPhrase(delta) {
@@ -461,7 +458,7 @@
     tile.hidden = items.length === 0;
   }
 
-  function renderSummary(summary, history) {
+  function renderSummary(summary, deltas) {
     for (const el of document.querySelectorAll(".skeleton")) {
       el.classList.remove("skeleton");
     }
@@ -474,25 +471,25 @@
       renderVitals({});
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIsoDate();
     $("today-date").classList.remove("today-date--message");
     $("today-date").textContent =
-      summary.date === today ? "Today" : `Latest: ${formatDateLabel(summary.date)}`;
+      summary.date >= today ? "Today" : `Latest: ${formatDateLabel(summary.date)}`;
     renderGauge(document.querySelector('[data-metric="readiness"]'), summary.readiness, {
       metric: "readiness",
-      delta: sevenDayDelta(history, "readiness", summary),
+      delta: deltas?.readiness ?? null,
     });
     renderGauge(document.querySelector('[data-metric="sleep"]'), summary.sleep, {
       metric: "sleep",
       delayMs: 120,
       ticks: 8,
-      delta: sevenDayDelta(history, "sleep", summary),
+      delta: deltas?.sleep ?? null,
     });
     renderGauge(document.querySelector('[data-metric="activity"]'), summary.activity, {
       metric: "activity",
       delayMs: 240,
       ticks: 8,
-      delta: sevenDayDelta(history, "activity", summary),
+      delta: deltas?.activity ?? null,
     });
     renderVitals(summary);
     document.querySelector('[data-stat="sleep-time"]').textContent =
@@ -608,9 +605,7 @@
     const sleepDataset = lineDataset(
       "Time asleep",
       history.map((r) =>
-        r.total_sleep_seconds === null
-          ? null
-          : Math.round((r.total_sleep_seconds / 3600) * 10) / 10
+        r.total_sleep_seconds === null ? null : r.total_sleep_seconds / 3600
       ),
       sleepColor,
       days
@@ -622,6 +617,16 @@
       data: { labels, datasets: [sleepDataset] },
       options: {
         ...common,
+        plugins: {
+          ...common.plugins,
+          tooltip: {
+            ...common.plugins.tooltip,
+            callbacks: {
+              ...common.plugins.tooltip.callbacks,
+              label: (item) => `Time asleep: ${formatSleep(item.parsed.y * 3600)}`,
+            },
+          },
+        },
         scales: {
           ...common.scales,
           y: {
@@ -845,7 +850,7 @@
     if (refresh) state.historyCache = {};
     $("owner-controls").hidden = !state.isOwner;
     $("disconnect-row").hidden = !state.isOwner;
-    renderSummary(dash.summary, dash.history.data);
+    renderSummary(dash.summary, dash.seven_day_deltas);
     renderZScores(dash.baselines);
     renderPatterns(dash.patterns);
     renderLowInputs(dash.lowest_readiness_inputs);

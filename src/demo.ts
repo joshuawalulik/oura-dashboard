@@ -14,6 +14,7 @@ import {
 import {
   computeBaselines,
   computePatterns,
+  computeSevenDayDeltas,
   lowestReadinessInputs,
 } from "./insights";
 import { mulberry32 } from "./prng";
@@ -176,6 +177,7 @@ demoRoutes.get("/dashboard", async (c, next) => {
     summary: latestRecord(history) ?? { date: null },
     history: { days, data: history },
     baselines: computeBaselines(insightHistory, latest),
+    seven_day_deltas: computeSevenDayDeltas(insightHistory, latest),
     patterns: computePatterns(insightHistory),
     lowest_readiness_inputs: latest
       ? lowestReadinessInputs(demoContributors(latest))

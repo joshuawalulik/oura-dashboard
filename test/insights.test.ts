@@ -7,6 +7,7 @@ import type { DayRecord } from "../src/filter";
 import {
   computeBaselines,
   computePatterns,
+  computeSevenDayDeltas,
   lowestReadinessInputs,
   MIN_BASELINE_DAYS,
 } from "../src/insights";
@@ -306,6 +307,38 @@ describe("computePatterns: showing the math", () => {
     const sentences = computePatterns(unrelated(9)).map((p) => p.sentence);
     expect(sentences.length).toBe(4);
     for (const sentence of sentences) expect(sentence).not.toMatch(/\b(you|your)\b/i);
+  });
+});
+
+describe("computeSevenDayDeltas", () => {
+  const latest = day(LATEST, { readiness: 82, sleep: 85, activity: null });
+
+  it("compares the latest score with the mean of the seven days before it", () => {
+    const history = datesEnding(LATEST, 7).map((date) => day(date, { readiness: 70 }));
+    expect(computeSevenDayDeltas(history, latest).readiness).toBe(12);
+  });
+
+  it("ignores days older than seven, and the latest day itself", () => {
+    const older = datesEnding("2026-10-28", 10).map((date) => day(date, { readiness: 20 }));
+    const week = datesEnding(LATEST, 7).map((date) => day(date, { readiness: 70 }));
+    expect(
+      computeSevenDayDeltas([...older, ...week, latest], latest).readiness
+    ).toBe(12);
+  });
+
+  it("averages only the days with data when some are missing", () => {
+    const history = datesEnding(LATEST, 7).map((date, i) =>
+      day(date, { readiness: i < 3 ? null : 70 })
+    );
+    expect(computeSevenDayDeltas(history, latest).readiness).toBe(12);
+  });
+
+  it("leaves out metrics with under three days, or no latest score", () => {
+    const history = datesEnding(LATEST, 7).map((date, i) =>
+      day(date, { readiness: i < 2 ? 70 : null, activity: 60 })
+    );
+    expect(computeSevenDayDeltas(history, latest)).toEqual({});
+    expect(computeSevenDayDeltas(history, null)).toEqual({});
   });
 });
 
